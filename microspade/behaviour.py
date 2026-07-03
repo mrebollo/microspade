@@ -288,8 +288,6 @@ class FSMBehaviour(Behaviour):
         self._states[name] = state
         if initial or self._current_state is None:
             self._current_state = name
-        if initial:
-            self._current_state = name
 
     def add_transition(self, source, dest):
         """
