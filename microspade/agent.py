@@ -29,7 +29,7 @@ Typical usage
 
 from microspade.message import Message
 from microspade.transport import RadioTransport
-from microspade.container import container as _container
+from microspade.container import container
 from microspade._compat import sleep_ms
 
 
@@ -117,8 +117,8 @@ class Agent:
             message.sender = self.name
 
         # Try local delivery first (same micro:bit / test environment).
-        if message.to is not None and _container.has_agent(message.to):
-            _container.dispatch(message)
+        if message.to is not None and container.has_agent(message.to):
+            container.dispatch(message)
         else:
             self._transport.send(message.encode())
 
@@ -169,14 +169,14 @@ class Agent:
     def start(self):
         """Initialise the transport, register in the container and call :meth:`setup`."""
         self._transport.setup()
-        _container.register(self)
+        container.register(self)
         self._running = True
         self.setup()
 
     def stop(self):
         """Stop the scheduler and release the transport."""
         self._running = False
-        _container.unregister(self)
+        container.unregister(self)
         self._transport.teardown()
 
     def is_alive(self):
