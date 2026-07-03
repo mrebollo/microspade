@@ -28,7 +28,7 @@ class CountdownBehaviour(CyclicBehaviour):
             sleep(1000)  # Wait 1 second between numbers
             self.counter -= 1
         else:
-            #print("Blastoff!")
+            print("Blastoff!")
             
             # Custom frames for a rocket taking off upwards
             rocket_frames = [
