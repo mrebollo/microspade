@@ -8,6 +8,7 @@ microspade.py file for easy deployment on the micro:bit.
 
 import os
 import re
+import ast
 
 FILES_ORDER = [
     "_compat.py",
@@ -18,6 +19,17 @@ FILES_ORDER = [
     "behaviour.py",
     "agent.py",
 ]
+
+def minify(content):
+    """Remove comments and docstrings from Python source code using AST."""
+    tree = ast.parse(content)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Module)):
+            if (node.body and isinstance(node.body[0], ast.Expr) and 
+                    isinstance(node.body[0].value, ast.Constant) and 
+                    isinstance(node.body[0].value.value, str)):
+                node.body.pop(0)
+    return ast.unparse(tree)
 
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -32,23 +44,21 @@ def main():
         "",
     ]
     
-    # Track imported standard library / microbit modules to move them or keep them clean
-    # We will just strip any "from microspade..." imports since all components
-    # will coexist in the same module scope.
-    
     for filename in FILES_ORDER:
         filepath = os.path.join(src_dir, filename)
         if not os.path.exists(filepath):
             print(f"Error: {filepath} not found.")
             return
             
-        print(f"Processing {filename}...")
+        print(f"Processing and minifying {filename}...")
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
             
-        # Remove docstrings at the beginning of each file
-        content = re.sub(r'^(\s*)\"\"\"(.*?)\"\"\"(\s*)', "", content, flags=re.DOTALL)
-        
+        try:
+            content = minify(content)
+        except Exception as e:
+            print(f"Warning: could not minify {filename} due to {e}")
+            
         # Remove internal imports
         lines = content.splitlines()
         filtered_lines = []
