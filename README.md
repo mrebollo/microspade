@@ -37,28 +37,19 @@ You can use [uflash](https://uflash.readthedocs.io/),
 
 ```python
 # main.py  (flash this to the micro:bit)
-from microbit import display, Image, sleep
-from microspade import Agent, CyclicBehaviour, OneShotBehaviour, Message
+from microbit import display
+from microspade import Agent, OneShotBehaviour
 
-class SayHello(OneShotBehaviour):
+class GreetBehaviour(OneShotBehaviour):
     def run(self):
+        print("Hello, microspade!")
         display.scroll("Hello!")
-        self.send(Message(to=self.agent.name, body="Hi", performative="inform"))
 
-class Listen(CyclicBehaviour):
-    def run(self):
-        msg = self.receive()
-        if msg:
-            display.show(Image.HAPPY)
-            sleep(1000)
-            display.clear()
-
-class MyAgent(Agent):
+class HelloAgent(Agent):
     def setup(self):
-        self.add_behaviour(SayHello())
-        self.add_behaviour(Listen())
+        self.add_behaviour(GreetBehaviour())
 
-MyAgent("hello").run()
+HelloAgent("hello_agent").run()
 ```
 
 ---
@@ -323,9 +314,17 @@ tests/
 ├── test_behaviour.py
 └── test_agent.py
 examples/
-├── simple_agent.py    Hello-world single agent
+├── hello_agent.py     Hello-world single agent
+├── counter_agent.py   Countdown timer with rocket animation
+├── periodic_agent.py  Periodic LED and beep beacon
+├── timeout_agent.py   Auto-off timer using TimeoutBehaviour
 ├── ping_pong.py       Two-board communication
 └── fsm_agent.py       Button-driven state machine
+tools/
+└── build_module.py    Bundler script (removes comments/docstrings)
+dist/
+├── microspade.py      Bundled single-file module for micro:bit
+└── microspade.hex     Optional pre-compiled firmware hex file
 ```
 
 ---
