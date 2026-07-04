@@ -55,6 +55,7 @@ class Agent:
         self._running = False
         self._enable_log = enable_log
         self._log_initialized = False
+        self._focused_proxies = {}
 
     def __str__(self):
         kb = getattr(self, "_kb", {})
@@ -171,8 +172,56 @@ class Agent:
         raw = self._transport.receive()
         if raw:
             msg = Message.decode(raw)
-            if msg is not None and self._accepts(msg):
-                self._dispatch(msg)
+            if msg is not None:
+                # 1. Remote operation execution request
+                if msg.performative == "request" and msg.body.startswith("op|"):
+                    parts = msg.body.split("|")
+                    if len(parts) >= 3:
+                        art_name = parts[1]
+                        op_name = parts[2]
+                        op_args = parts[3:]
+                        
+                        typed_args = []
+                        for arg in op_args:
+                            if arg == "True": typed_args.append(True)
+                            elif arg == "False": typed_args.append(False)
+                            elif arg.isdigit(): typed_args.append(int(arg))
+                            else:
+                                try:
+                                    typed_args.append(float(arg))
+                                except ValueError:
+                                    typed_args.append(arg)
+                                    
+                        art = container.get_artifact(art_name)
+                        if art is not None:
+                            method = getattr(art, op_name, None)
+                            if method is not None:
+                                method(*typed_args)
+                    return
+
+                # 2. Remote property update notification
+                if msg.performative == "inform" and msg.body.startswith("prop|"):
+                    parts = msg.body.split("|")
+                    if len(parts) >= 4:
+                        art_name = parts[1]
+                        prop_name = parts[2]
+                        val_str = parts[3]
+                        
+                        if val_str == "True": val = True
+                        elif val_str == "False": val = False
+                        elif val_str.isdigit(): val = int(val_str)
+                        else:
+                            try:
+                                val = float(val_str)
+                            except ValueError:
+                                val = val_str
+                                
+                        if hasattr(self, "_focused_proxies") and art_name in self._focused_proxies:
+                            self.set(prop_name, val)
+                    return
+
+                if self._accepts(msg):
+                    self._dispatch(msg)
 
     def _accepts(self, msg):
         """Return ``True`` if this agent should process *msg*."""
@@ -205,6 +254,34 @@ class Agent:
         if not hasattr(self, "_kb"):
             return None
         return self._kb.get(key)
+
+    def focus(self, name_or_artifact):
+        """Focus on an artifact to automatically receive its property updates in the KB."""
+        if not hasattr(self, "_focused_proxies"):
+            self._focused_proxies = {}
+
+        from microspade.container import container
+        from microspade.artifact import Artifact, RemoteArtifactProxy
+
+        if isinstance(name_or_artifact, str):
+            name = name_or_artifact
+            if container.has_artifact(name):
+                art = container.get_artifact(name)
+                art.add_observer(self)
+                return art
+            else:
+                proxy = RemoteArtifactProxy(name, self)
+                self._focused_proxies[name] = proxy
+                return proxy
+        elif isinstance(name_or_artifact, Artifact):
+            art = name_or_artifact
+            if hasattr(art, "name") and art.name:
+                self._focused_proxies[art.name] = art
+            art.add_observer(self)
+            return art
+        else:
+            raise TypeError("focus expects a string name or an Artifact instance")
+
 
     # ------------------------------------------------------------------
     # Lifecycle

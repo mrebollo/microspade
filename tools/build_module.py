@@ -16,6 +16,7 @@ FILES_ORDER = [
     "message.py",
     "transport.py",
     "container.py",
+    "artifact.py",
     "behaviour.py",
     "agent.py",
 ]

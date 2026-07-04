@@ -16,6 +16,7 @@ class _AgentContainer:
 
     def __init__(self):
         self._agents = {}
+        self._artifacts = {}
 
     @classmethod
     def instance(cls):
@@ -40,6 +41,28 @@ class _AgentContainer:
         """Return the agent registered under *name*, or ``None``."""
         return self._agents.get(name)
 
+    def register_artifact(self, name, artifact):
+        """Register *artifact* so it can be focused on locally."""
+        self._artifacts[name] = artifact
+        artifact.name = name
+
+    def get_artifact(self, name):
+        """Return the artifact registered under *name*, or ``None``."""
+        return self._artifacts.get(name)
+
+    def has_artifact(self, name):
+        """Return ``True`` when an artifact *name* is registered locally."""
+        return name in self._artifacts
+
+    def broadcast_property(self, artifact_name, prop_name, value):
+        """Broadcast a property update over the radio using the first registered agent."""
+        body = "prop|{}|{}|{}".format(artifact_name, prop_name, str(value))
+        from microspade.message import Message
+        msg = Message(to="*", performative="inform", body=body)
+        if self._agents:
+            first_agent = next(iter(self._agents.values()))
+            first_agent.send(msg)
+
     def dispatch(self, msg):
         """
         Route *msg* to the local agent named ``msg.to``.
@@ -57,8 +80,9 @@ class _AgentContainer:
         return False
 
     def reset(self):
-        """Remove all registered agents (mainly useful in tests)."""
+        """Remove all registered agents and artifacts (mainly useful in tests)."""
         self._agents = {}
+        self._artifacts = {}
 
 
 # Module-level convenience alias

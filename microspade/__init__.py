@@ -19,6 +19,7 @@ Public API::
 """
 
 from microspade.agent import Agent
+from microspade.artifact import Artifact, RemoteArtifactProxy
 from microspade.behaviour import (
     Behaviour,
     CyclicBehaviour,
@@ -35,6 +36,8 @@ from microspade.container import container
 
 __all__ = [
     "Agent",
+    "Artifact",
+    "RemoteArtifactProxy",
     "Behaviour",
     "CyclicBehaviour",
     "OneShotBehaviour",
