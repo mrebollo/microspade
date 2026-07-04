@@ -35,6 +35,12 @@ class Behaviour:
         self._is_done = False
         self._started = False
         self._mailbox = Mailbox()
+        self._generator = None
+        self._yield_deadline = None
+
+    def _reset_generator(self):
+        self._generator = None
+        self._yield_deadline = None
 
     # ------------------------------------------------------------------
     # Lifecycle hooks (override in subclasses)
@@ -121,7 +127,29 @@ class Behaviour:
 
     def _step(self):
         """Execute one scheduler tick."""
-        self.run()
+        if self._generator is None:
+            result = self.run()
+            # If the result of calling run() is a generator
+            if hasattr(result, "__next__") or hasattr(result, "send"):
+                self._generator = result
+            else:
+                return  # Synchronous run() finished
+
+        # Check if we are currently suspended/sleeping
+        if self._yield_deadline is not None:
+            if ticks_diff(self._yield_deadline, ticks_ms()) > 0:
+                return  # Sleep duration hasn't expired yet
+            else:
+                self._yield_deadline = None
+
+        try:
+            val = next(self._generator)
+            # If the yielded value is a number, treat it as a sleep duration in seconds
+            if isinstance(val, (int, float)) and val > 0:
+                self._yield_deadline = ticks_ms() + int(val * 1000)
+        except StopIteration:
+            self._generator = None
+            self._is_done = True
 
 
 # ---------------------------------------------------------------------------
@@ -344,7 +372,7 @@ class FSMBehaviour(Behaviour):
             state._started = True
 
         state._next_state = None
-        state.run()
+        state._step()
 
         next_name = state._next_state
         if next_name is not None:
@@ -357,10 +385,12 @@ class FSMBehaviour(Behaviour):
             state.on_end()
             state._started = False
             state._is_done = False
+            state._reset_generator()
             self._current_state = next_name
         elif state._is_done:
             # State killed itself → FSM terminates.
             state.on_end()
+            state._reset_generator()
             self._is_done = True
         # else: state keeps running (neither transition nor kill).
 

@@ -48,11 +48,55 @@ class Agent:
         :class:`~microspade.transport.RadioTransport`.
     """
 
-    def __init__(self, name, transport=None):
+    def __init__(self, name, transport=None, enable_log=False):
         self.name = name
         self._transport = transport if transport is not None else RadioTransport()
         self._behaviours = []  # list of dicts: {behaviour, started, template}
         self._running = False
+        self._enable_log = enable_log
+        self._log_initialized = False
+
+    def __str__(self):
+        kb = getattr(self, "_kb", {})
+        return "[" + self.name + "] " + str(kb)
+
+    def log_kb(self):
+        """Log the current knowledge base (KB) to the micro:bit flash memory."""
+        if not self._enable_log:
+            return
+
+        try:
+            import log
+        except ImportError:
+            # Fallback for desktop/testing environment
+            print("[Log Mock] Logging KB:", getattr(self, "_kb", {}))
+            return
+
+        kb = getattr(self, "_kb", {})
+        if kb:
+            if not self._log_initialized:
+                # Set column headers using the dictionary keys
+                log.set_labels(*kb.keys())
+                self._log_initialized = True
+            
+            try:
+                log.add(**kb)
+            except OSError as e:
+                # Error 28 means disk full (ENOSPC)
+                if len(e.args) > 0 and e.args[0] == 28:
+                    print("[Log] Memory full. Fast-deleting log to continue...")
+                    log.delete(full=False)
+                    # After deletion, labels must be re-registered
+                    log.set_labels(*kb.keys())
+                    # Retry logging the current row
+                    try:
+                        log.add(**kb)
+                    except OSError:
+                        # If it still fails, deactivate logging to prevent loops
+                        self._enable_log = False
+                        print("[Log] Critical: Deletion failed or disk still full.")
+                else:
+                    raise e
 
     # ------------------------------------------------------------------
     # User-overridable hooks

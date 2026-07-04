@@ -320,11 +320,15 @@ examples/
 ├── timeout_agent.py   Auto-off timer using TimeoutBehaviour
 ├── ping_pong.py       Two-board communication
 └── fsm_agent.py       Button-driven state machine
+projects/
+└── environmental_monitor/  Comfort monitor using temperature, light, and sound V2
+    └── main.py
 tools/
-└── build_module.py    Bundler script (removes comments/docstrings)
+├── build_module.py    Bundler script (removes comments/docstrings)
+├── receiver.py        Generic PC-side USB serial telemetry receiver
+└── README.md          Documentation for PC-side helper tools
 dist/
-├── microspade.py      Bundled single-file module for micro:bit
-└── microspade.hex     Optional pre-compiled firmware hex file
+└── microspade.py      Bundled single-file module for micro:bit
 ```
 
 ---

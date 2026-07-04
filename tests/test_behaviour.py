@@ -460,3 +460,70 @@ class TestFSMBehaviour:
         fsm._mailbox.put(Message(body="hello"))
         fsm._step()
         assert received == ["hello"]
+
+
+# ---------------------------------------------------------------------------
+# Generator yielding support
+# ---------------------------------------------------------------------------
+
+
+class TestGeneratorBehaviour:
+    def test_generator_yield_delays_execution(self):
+        log = []
+
+        class GenBehaviour(CyclicBehaviour):
+            def run(self):
+                log.append("start")
+                yield 0.05  # Yield for 50ms
+                log.append("end")
+
+        b = GenBehaviour()
+        b._step()  # Starts generator, executes up to yield
+        assert log == ["start"]
+        assert b._yield_deadline is not None
+        
+        # Second step immediately: deadline not met yet, should not run "end"
+        b._step()
+        assert log == ["start"]
+        
+        # Sleep to exceed the 50ms deadline
+        time.sleep(0.06)
+        b._step()  # Resume generator, executes to completion
+        assert log == ["start", "end"]
+        assert b.done()
+
+    def test_generator_fsm_state_yield(self):
+        log = []
+
+        class StateA(State):
+            def run(self):
+                log.append("A1")
+                yield 0.05
+                log.append("A2")
+                self.set_next_state("B")
+
+        class StateB(State):
+            def run(self):
+                log.append("B")
+                self.kill()
+
+        fsm = FSMBehaviour()
+        fsm.add_state("A", StateA(), initial=True)
+        fsm.add_state("B", StateB())
+
+        fsm._step()  # Runs StateA up to yield
+        assert log == ["A1"]
+        assert fsm.current_state == "A"
+
+        fsm._step()  # Still waiting
+        assert log == ["A1"]
+
+        time.sleep(0.06)
+        fsm._step()  # StateA finishes, sets next state to B, transitions
+        assert log == ["A1", "A2"]
+        assert fsm.current_state == "B"
+
+        fsm._step()  # StateB runs
+        assert log == ["A1", "A2", "B"]
+        assert fsm.done()
+

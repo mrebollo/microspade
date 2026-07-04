@@ -44,6 +44,7 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     
     bundled_content = [
+        '# microbit-module: microspade@0.1.0',
         '"""',
         'microspade — SPADE-like agents for micro:bit.',
         'Bundled single-file module.',
