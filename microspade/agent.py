@@ -113,6 +113,13 @@ class Agent:
                 self.add_behaviour(MyBehaviour())
         """
 
+    def on_property_change(self, artifact_name, property_name, value):
+        """
+        Called automatically when a focused artifact's property changes.
+        Override to react to updates reactively without polling.
+        """
+        pass
+
     # ------------------------------------------------------------------
     # Behaviour management
     # ------------------------------------------------------------------
@@ -217,7 +224,7 @@ class Agent:
                                 val = val_str
                                 
                         if hasattr(self, "_focused_proxies") and art_name in self._focused_proxies:
-                            self.set(prop_name, val)
+                            self._receive_property_update(art_name, prop_name, val)
                     return
 
                 if self._accepts(msg):
@@ -242,6 +249,17 @@ class Agent:
     # ------------------------------------------------------------------
     # Agent knowledge base (key/value store shared between behaviours)
     # ------------------------------------------------------------------
+
+    def _receive_property_update(self, artifact_name, property_name, value):
+        """Internal receiver method to sync updates to the KB and trigger the hook."""
+        self.set(property_name, value)
+        self.on_property_change(artifact_name, property_name, value)
+        
+        # Call specific handler if defined: on_<property>_change(value, artifact_name)
+        handler_name = "on_{}_change".format(property_name)
+        handler = getattr(self, handler_name, None)
+        if handler is not None:
+            handler(value, artifact_name)
 
     def set(self, key, value):
         """Store *value* under *key* in the agent's knowledge base."""

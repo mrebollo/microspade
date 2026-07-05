@@ -1,29 +1,24 @@
 """
-light_agent.py — Simple example demonstrating Artifact Operations.
+light_agent.py — Touch-controlled Light Agent and Artifact example.
 
-This program defines a LightArtifact with operations to turn a light on or off.
-A SwitchAgent focuses on the light and periodically toggles its state
-by invoking these operations.
+This program defines a LightArtifact with operations to turn an LED display
+on or off. A SwitchAgent focuses on the light, polls the physical micro:bit
+touch logo (pin_logo) in a periodic behaviour to toggle the light, and reactively
+receives notifications when the light state changes.
 """
 
-# Try importing microbit modules, fallback to mock if running on PC
-try:
-    from microbit import display, sleep
-    HAS_MICROBIT = True
-except ImportError:
-    HAS_MICROBIT = False
-
+from microbit import display, pin_logo
 from microspade import Agent, Artifact, PeriodicBehaviour
 
 
 # ---------------------------------------------------------------------------
-# 1. Environment: Light/LED Artifact
+# 1. Environment: Light Artifact
 # ---------------------------------------------------------------------------
 
 class LightArtifact(Artifact):
     """
     An artifact representing a light or LED.
-    It exposes operations to turn it on or off.
+    Exposes operations to turn it on or off.
     """
 
     def __init__(self):
@@ -37,44 +32,50 @@ class LightArtifact(Artifact):
         """Operation to turn the light ON."""
         self.update_property("light_on", True)
         print("[Hardware] LED turned ON")
-        if HAS_MICROBIT:
-            display.show(display.HEART)  # Show heart icon when on
+        display.show(display.HEART)  # Show heart icon when on
 
     def turn_off(self):
         """Operation to turn the light OFF."""
         self.update_property("light_on", False)
         print("[Hardware] LED turned OFF")
-        if HAS_MICROBIT:
-            display.clear()  # Clear display when off
+        display.clear()  # Clear display when off
 
 
 # ---------------------------------------------------------------------------
-# 2. Agent: Switch Agent
+# 2. Behaviours
 # ---------------------------------------------------------------------------
 
-class ToggleBehaviour(PeriodicBehaviour):
+class TouchListenerBehaviour(PeriodicBehaviour):
     """
-    Periodically checks the current state of the light in the agent's KB,
-    and toggles it by invoking the artifact's operations.
+    Periodically checks if the physical touch logo is pressed to toggle the light.
     """
+
+    def __init__(self):
+        # Poll touch sensor every 100ms for high responsiveness
+        super().__init__(period=0.1)
+        self._was_touched = False
+
+    def was_logo_touched(self):
+        """
+        Helper method to detect the rising edge (transition from False to True)
+        of the physical touch logo, preventing rapid-fire multiple toggles.
+        """
+        current = pin_logo.is_touched()
+        touched = current and not self._was_touched
+        self._was_touched = current
+        return touched
 
     def run(self):
-        # Read the current observable state from the KB (updated automatically)
-        is_on = self.agent.get("light_on")
-        
-        print("Agent KB: light_on =", is_on)
+        if self.was_logo_touched():
+            if self.agent.get("light_on"):
+                self.agent.light.turn_off()
+            else:
+                self.agent.light.turn_on()
 
-        # Retrieve the artifact reference from the agent
-        light = self.agent.light
 
-        # Invoke the corresponding operation on the artifact
-        if is_on:
-            print("Agent: Invoking turn_off()")
-            light.turn_off()
-        else:
-            print("Agent: Invoking turn_on()")
-            light.turn_on()
-
+# ---------------------------------------------------------------------------
+# 3. Agent: Switch Agent
+# ---------------------------------------------------------------------------
 
 class SwitchAgent(Agent):
     def __init__(self, name, light_artifact, **kwargs):
@@ -85,44 +86,23 @@ class SwitchAgent(Agent):
         # 1. Focus on the light artifact to receive its property updates
         self.focus(self.light)
         
-        # 2. Add behaviour to toggle the light every 2 seconds
-        self.add_behaviour(ToggleBehaviour(period=2.0))
+        # 2. Add behaviour to listen for touch events
+        self.add_behaviour(TouchListenerBehaviour())
+
+    def on_light_on_change(self, value, artifact_name):
+        # Triggered automatically when the physical 'light_on' property changes
+        print("SwitchAgent: Light property is now", value)
 
 
 # ---------------------------------------------------------------------------
-# 3. Main Execution
+# 4. Main Execution
 # ---------------------------------------------------------------------------
 
-# Create the physical/environment artifact
+# Create the light artifact
 light_device = LightArtifact()
 
 # Create the agent, passing the artifact reference
-if HAS_MICROBIT:
-    agent = SwitchAgent("switch", light_device)
-else:
-    class DummyTransport:
-        def setup(self): pass
-        def teardown(self): pass
-        def send(self, data): pass
-        def receive(self): return None
-        
-    agent = SwitchAgent("switch", light_device, transport=DummyTransport())
+agent = SwitchAgent("switch", light_device)
 
-# Start the agent
-agent.start()
-
-print("Starting Switch Agent... (Press Ctrl+C to exit)")
-try:
-    # Run 6 cycles of the agent step loop
-    for cycle in range(6):
-        agent.step()
-        
-        # Wait 2 seconds (matching the behaviour period)
-        if HAS_MICROBIT:
-            sleep(2000)
-        else:
-            import time
-            time.sleep(2.0)
-finally:
-    agent.stop()
-    print("Agent stopped.")
+# Start the agent and enter the main loop
+agent.run()

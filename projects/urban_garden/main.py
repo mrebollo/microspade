@@ -6,17 +6,9 @@ Reads soil moisture, ambient light, and temperature to decide when
 to open a water valve using a servo motor.
 """
 
-# Try importing microbit modules, fallback to mock if running on PC
-try:
-    from microbit import display, sleep, pin1, pin2, temperature, display
-    # We will use:
-    # - pin1 for Soil Moisture Sensor (Analog Read)
-    # - pin2 for Servo Motor Valve (PWM Analog Write)
-    HAS_MICROBIT = True
-except ImportError:
-    HAS_MICROBIT = False
+from microbit import display, sleep, pin1, pin2, temperature
 
-from microspade import Agent, Artifact, PeriodicBehaviour, container
+from microspade import Agent, Artifact, PeriodicBehaviour
 
 
 # ---------------------------------------------------------------------------
@@ -29,19 +21,13 @@ class SoilMoistureSensor(Artifact):
     Connected to Pin 1 (Analog input).
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name=None):
+        super().__init__(name)
         self.define_property("moisture", 500)  # Range 0 (dry) to 1023 (wet)
 
     def read_sensor(self):
-        """Read the physical/simulated sensor value."""
-        if HAS_MICROBIT:
-            val = pin1.read_analog()
-        else:
-            # Simulate slight drying over time
-            val = self._properties["moisture"] - 20
-            if val < 200:
-                val = 200  # clamp
+        """Read the sensor value."""
+        val = pin1.read_analog()
         self.update_property("moisture", val)
 
 
@@ -50,23 +36,14 @@ class EnvironmentSensor(Artifact):
     Artifact wrapping the micro:bit's built-in temperature and light level sensors.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name=None):
+        super().__init__(name)
         self.define_property("temperature", 22)
         self.define_property("light_level", 120)  # Range 0 (dark) to 255 (bright)
 
     def read_sensors(self):
-        if HAS_MICROBIT:
-            temp = temperature()
-            light = display.read_light_level()
-        else:
-            # Simulate stable room temp and changing light (day/night cycle)
-            temp = 22
-            light = self._properties["light_level"] - 15
-            if light < 20:
-                light = 200  # Cycle back to daytime
-        self.update_property("temperature", temp)
-        self.update_property("light_level", light)
+        self.update_property("temperature", temperature())
+        self.update_property("light_level", display.read_light_level())
 
 
 class WaterValve(Artifact):
@@ -75,14 +52,13 @@ class WaterValve(Artifact):
     Exposes operations to open or close the valve.
     """
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name=None):
+        super().__init__(name)
         self.define_property("valve_open", False)
-        if HAS_MICROBIT:
-            # Standard servo uses 50Hz (20ms period)
-            pin2.set_analog_period(20)
-            # Make sure it starts closed
-            pin2.write_analog(51)  # ~1ms pulse (0 degrees / closed)
+        # Standard servo uses 50Hz (20ms period)
+        pin2.set_analog_period(20)
+        # Make sure it starts closed
+        pin2.write_analog(51)  # ~1ms pulse (0 degrees / closed)
 
     # --- OPERATIONS ---
 
@@ -90,17 +66,15 @@ class WaterValve(Artifact):
         """Operation to open the water valve (rotate servo to 90 degrees)."""
         self.update_property("valve_open", True)
         print("[Actuator] Opening valve (Servo 90 degrees)")
-        if HAS_MICROBIT:
-            pin2.write_analog(77)  # ~1.5ms pulse (90 degrees)
-            display.show(display.ARROW_S)  # Down arrow (water flowing)
+        pin2.write_analog(77)  # ~1.5ms pulse (90 degrees)
+        display.show(display.ARROW_S)  # Down arrow (water flowing)
 
     def close_valve(self):
         """Operation to close the water valve (rotate servo to 0 degrees)."""
         self.update_property("valve_open", False)
         print("[Actuator] Closing valve (Servo 0 degrees)")
-        if HAS_MICROBIT:
-            pin2.write_analog(51)  # ~1ms pulse (0 degrees)
-            display.clear()
+        pin2.write_analog(51)  # ~1ms pulse (0 degrees)
+        display.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -159,17 +133,11 @@ class IrrigationBrain(PeriodicBehaviour):
 
 
 class GardenAgent(Agent):
-    def __init__(self, name, moisture_art, env_art, valve_art, **kwargs):
-        super().__init__(name, **kwargs)
-        self.moisture_art = moisture_art
-        self.env_art = env_art
-        self.valve = valve_art
-
     def setup(self):
-        # Focus on all artifacts to receive their updates in KB
-        self.focus(self.moisture_art)
-        self.focus(self.env_art)
-        self.focus(self.valve)
+        # Focus on all artifacts by name to resolve them (local or remote)
+        self.moisture_art = self.focus("soil_moisture")
+        self.env_art = self.focus("environment")
+        self.valve = self.focus("water_valve")
 
         # Add behaviors
         self.add_behaviour(SensorPoller(self.moisture_art, self.env_art, period=2.0))
@@ -181,27 +149,13 @@ class GardenAgent(Agent):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # Create the artifacts
-    moisture_sensor = SoilMoistureSensor()
-    env_sensor = EnvironmentSensor()
-    valve = WaterValve()
+    # Create the artifacts (passing their registered names for automatic registration)
+    moisture_sensor = SoilMoistureSensor(name="soil_moisture")
+    env_sensor = EnvironmentSensor(name="environment")
+    valve = WaterValve(name="water_valve")
 
-    # Register them in the local container
-    container.register_artifact("soil_moisture", moisture_sensor)
-    container.register_artifact("environment", env_sensor)
-    container.register_artifact("water_valve", valve)
-
-    # Initialize agent (with dummy transport for PC run)
-    if HAS_MICROBIT:
-        agent = GardenAgent("garden_controller", moisture_sensor, env_sensor, valve)
-    else:
-        class DummyTransport:
-            def setup(self): pass
-            def teardown(self): pass
-            def send(self, data): pass
-            def receive(self): return None
-            
-        agent = GardenAgent("garden_controller", moisture_sensor, env_sensor, valve, transport=DummyTransport())
+    # Initialize agent
+    agent = GardenAgent("garden_controller")
 
     # Start the agent
     agent.start()
@@ -213,17 +167,15 @@ if __name__ == "__main__":
             agent.step()
             
             # If running in simulation, artificially force a dry & dark state to trigger watering
-            if not HAS_MICROBIT and cycle == 2:
-                print("\n--- SIMULATION: Forcing dry & dark environment ---")
-                moisture_sensor.update_property("moisture", 300)
-                env_sensor.update_property("light_level", 50)
-                print("--------------------------------------------------\n")
+            import sys
+            if sys.platform != "microbit":
+                if cycle == 2:
+                    print("\n--- SIMULATION: Forcing dry & dark environment ---")
+                    moisture_sensor.update_property("moisture", 300)
+                    env_sensor.update_property("light_level", 50)
+                    print("--------------------------------------------------\n")
                 
-            if HAS_MICROBIT:
-                sleep(2000)
-            else:
-                import time
-                time.sleep(2.0)
+            sleep(2000)
     finally:
         agent.stop()
         print("Controller stopped.")

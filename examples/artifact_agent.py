@@ -1,19 +1,13 @@
 """
-artifact_agent.py — Example demonstrating microspade Artifacts.
+artifact_agent.py — Temperature Sensor Artifact and Agent example.
 
-This program defines a simulated temperature sensor artifact and an agent
-that focuses on it. The agent automatically receives temperature updates
-in its Knowledge Base (KB) and displays them without polling the sensor directly.
+This program defines a TemperatureSensor artifact that reads the micro:bit's
+built-in thermometer, and a ThermostatAgent that focuses on it and reactively
+updates the display when the physical temperature changes.
 """
 
-# Try importing microbit modules, fallback to mock if running on PC
-try:
-    from microbit import display, sleep
-    import music
-    HAS_MICROBIT = True
-except ImportError:
-    HAS_MICROBIT = False
-
+from microbit import display, temperature
+import music
 from microspade import Agent, Artifact, PeriodicBehaviour
 
 
@@ -23,53 +17,28 @@ from microspade import Agent, Artifact, PeriodicBehaviour
 
 class TemperatureSensor(Artifact):
     """
-    A simulated temperature sensor.
+    An artifact representing the built-in temperature sensor.
     """
 
     def __init__(self):
         super().__init__()
-        # Define the initial temperature property
-        self.define_property("temperature", 20)
-        self._trend = 1
+        # Initialise with the current physical temperature
+        self.define_property("temperature", temperature())
 
-    def simulate_read(self):
-        """Simulate reading a new temperature value from the sensor."""
-        current_temp = self._properties["temperature"]
-        
-        # Fluctuate temperature between 18 and 25 degrees
-        if current_temp >= 25:
-            self._trend = -1
-        elif current_temp <= 18:
-            self._trend = 1
-            
-        next_temp = current_temp + self._trend
-        self.update_property("temperature", next_temp)
+    def read_sensor(self):
+        """Read the actual hardware sensor and update the property."""
+        self.update_property("temperature", temperature())
 
 
 # ---------------------------------------------------------------------------
 # 2. Agent: Thermostat Agent
 # ---------------------------------------------------------------------------
 
-class DisplayBehaviour(PeriodicBehaviour):
-    """
-    Periodically checks the agent's Knowledge Base for the current temperature
-    and outputs it. This behaviour has no direct connection to the sensor.
-    """
+class ReadSensorBehaviour(PeriodicBehaviour):
+    """Periodically triggers the sensor artifact to read its physical value."""
 
     def run(self):
-        # The agent's KB is updated automatically because the agent is focusing
-        # on the TemperatureSensor artifact.
-        temp = self.agent.get("temperature")
-        
-        print("Agent KB: temperature =", temp)
-        
-        if HAS_MICROBIT:
-            # Show a simple threshold warning on the LED display
-            if temp > 22:
-                display.scroll("HOT:{}C".format(temp), delay=80)
-                music.pitch(660, 100)
-            else:
-                display.scroll("{}C".format(temp), delay=80)
+        self.agent.sensor.read_sensor()
 
 
 class ThermostatAgent(Agent):
@@ -81,54 +50,30 @@ class ThermostatAgent(Agent):
         # 1. Focus on the temperature sensor to observe its properties
         self.focus(self.sensor)
         
-        # 2. Add behaviour to periodically show the current reading
-        self.add_behaviour(DisplayBehaviour(period=2.0))
+        # 2. Add behaviour to trigger sensor reads every 2 seconds
+        self.add_behaviour(ReadSensorBehaviour(period=2.0))
+
+    def on_temperature_change(self, value, artifact_name):
+        # Triggered automatically when the physical 'temperature' property changes
+        print("Temperature changed to:", value)
+        
+        # Show a simple warning if it gets too hot
+        if value > 22:
+            display.scroll("HOT:{}C".format(value), delay=80)
+            music.pitch(660, 100)
+        else:
+            display.scroll("{}C".format(value), delay=80)
 
 
 # ---------------------------------------------------------------------------
 # 3. Main Execution
 # ---------------------------------------------------------------------------
 
-# Create the environment artifact
+# Create the physical sensor artifact
 sensor = TemperatureSensor()
 
 # Create the agent and pass the artifact reference
-if HAS_MICROBIT:
-    agent = ThermostatAgent("thermostat", sensor)
-else:
-    class DummyTransport:
-        def setup(self):
-            pass
-        def teardown(self):
-            pass
-        def send(self, data):
-            pass
-        def receive(self):
-            return None
-            
-    agent = ThermostatAgent("thermostat", sensor, transport=DummyTransport())
+agent = ThermostatAgent("thermostat", sensor)
 
-# Start the agent (non-blocking setup)
-agent.start()
-
-
-# Main loop to simulate environment changes and run agent cycles
-print("Starting simulation... (Press Ctrl+C to exit)")
-try:
-    # Run for a few cycles
-    for cycle in range(10):
-        # 1. Simulate the sensor reading a new value
-        sensor.simulate_read()
-        
-        # 2. Execute agent behaviors
-        agent.step()
-        
-        # Wait 1 second between cycles
-        if HAS_MICROBIT:
-            sleep(1000)
-        else:
-            import time
-            time.sleep(1.0)
-finally:
-    agent.stop()
-    print("Simulation finished.")
+# Start the agent and enter the main loop
+agent.run()

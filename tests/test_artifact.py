@@ -202,3 +202,42 @@ def test_remote_operation_execution():
     assert heater.last_temp == 22
     assert heater.last_active is True
 
+
+def test_dynamic_property_change_callbacks():
+    class CallbackAgent(Agent):
+        def __init__(self, name, **kwargs):
+            super().__init__(name, **kwargs)
+            self.changed_properties = []
+            self.temp_changed_to = None
+            self.temp_changed_art = None
+
+        def on_property_change(self, artifact_name, property_name, value):
+            self.changed_properties.append((artifact_name, property_name, value))
+
+        def on_temperature_change(self, value, artifact_name):
+            self.temp_changed_to = value
+            self.temp_changed_art = artifact_name
+
+    agent = CallbackAgent("callback_agent")
+    art = Artifact("temp_sensor")
+    art.define_property("temperature", 22)
+    art.define_property("humidity", 50)
+
+    agent.focus(art)
+
+    # Initial sync triggers callbacks
+    assert ("temp_sensor", "temperature", 22) in agent.changed_properties
+    assert ("temp_sensor", "humidity", 50) in agent.changed_properties
+    assert agent.temp_changed_to == 22
+    assert agent.temp_changed_art == "temp_sensor"
+
+    # Property update triggers callbacks
+    agent.changed_properties.clear()
+    agent.temp_changed_to = None
+    
+    art.update_property("temperature", 25)
+    assert ("temp_sensor", "temperature", 25) in agent.changed_properties
+    assert agent.temp_changed_to == 25
+    assert agent.temp_changed_art == "temp_sensor"
+
+

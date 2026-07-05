@@ -13,7 +13,7 @@ DONE     – display check mark, stop the FSM
 Flash this to a single micro:bit.
 """
 
-from microbit import display, Image, button_a, button_b, sleep  # noqa: F401
+from microbit import display, Image, button_a, button_b
 from microspade import Agent, FSMBehaviour, State, Message
 
 # State name constants
@@ -58,7 +58,7 @@ class DoneState(State):
 
     def run(self):
         display.show(Image.YES)
-        sleep(2000)
+        yield 2.0
         display.clear()
         self.kill()  # terminal state — ends the FSM
 

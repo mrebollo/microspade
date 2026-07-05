@@ -11,10 +11,13 @@ class Artifact:
     Base class for all artifacts in the agent's environment.
     """
 
-    def __init__(self):
+    def __init__(self, name=None):
         self._observers = []
         self._properties = {}
-        self.name = None
+        self.name = name
+        if name is not None:
+            from microspade.container import container
+            container.register_artifact(name, self)
 
     def add_observer(self, agent):
         """Register an agent to observe this artifact's properties."""
@@ -22,7 +25,7 @@ class Artifact:
             self._observers.append(agent)
             # Sync existing properties to the agent's KB immediately
             for k, v in self._properties.items():
-                agent.set(k, v)
+                agent._receive_property_update(self.name, k, v)
 
     def remove_observer(self, agent):
         """Unregister an agent from observing this artifact."""
@@ -39,7 +42,7 @@ class Artifact:
             self._properties[name] = value
             # Notify local observers
             for agent in self._observers:
-                agent.set(name, value)
+                agent._receive_property_update(self.name, name, value)
             # Broadcast over radio for remote observers (if registered)
             if self.name is not None:
                 from microspade.container import container
