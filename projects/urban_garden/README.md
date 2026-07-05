@@ -24,7 +24,7 @@ It monitors soil moisture, ambient light, and temperature, and automatically ope
 
 ## 2. Software Architecture
 
-This project strictly follows the **Agents & Artifacts (A&A)** architecture:
+This project strictly follows the **Agents & Artifacts (A&A)** architecture with event-driven, callback-based decision making:
 
 ```mermaid
 graph TD
@@ -37,7 +37,6 @@ graph TD
     subgraph Agent (Reasoning Loop)
         GA[GardenAgent]
         SP[SensorPoller Behaviour]
-        IB[IrrigationBrain Behaviour]
         KB[(Agent Knowledge Base)]
     end
 
@@ -49,14 +48,14 @@ graph TD
     GA -- focus --> WV
     SP -- polls every 2s --> SM
     SP -- polls every 2s --> ES
-    IB -- reads properties --> KB
-    IB -- invokes open_valve/close_valve --> WV
+    KB -- triggers on_<prop>_change callbacks --> GA
+    GA -- invokes open_valve/close_valve --> WV
 ```
 
 *   **Artifacts:** Encapsulate the hardware layers (pin reads, PWM servo angles, internal sensor libraries). They expose **Observable Properties** (`moisture`, `temperature`, `light_level`, `valve_open`) and **Operations** (`open_valve()`, `close_valve()`).
-*   **Agent Behaviours:** Do not interact with hardware pins.
-    *   `SensorPoller` reads sensors at a slow interval.
-    *   `IrrigationBrain` evaluates the state of the KB and invokes operations on the valve artifact when the conditions are met.
+*   **Agent Behaviours:**
+    *   `SensorPoller`: A simple periodic behavior that prompts the sensors to take readings every 2 seconds.
+*   **Reactive Decision Making:** The `GardenAgent` listens for property updates in the KB via `on_moisture_change`, `on_light_level_change`, and `on_temperature_change` callbacks. Whenever any of these trigger, the agent immediately runs `check_irrigation()` to decide whether to open or close the valve.
 
 ---
 

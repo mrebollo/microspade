@@ -6,8 +6,7 @@ Reads soil moisture, ambient light, and temperature to decide when
 to open a water valve using a servo motor.
 """
 
-from microbit import display, sleep, pin1, pin2, temperature
-
+from microbit import display, pin1, pin2, temperature
 from microspade import Agent, Artifact, PeriodicBehaviour
 
 
@@ -84,11 +83,11 @@ class WaterValve(Artifact):
 class SensorPoller(PeriodicBehaviour):
     """
     A behavior to tick/read environmental artifacts.
-    Note: In a true A&A architecture, the artifacts themselves could run on a
-    hardware timer, but in MicroPython we poll them inside a periodic behavior.
+    Since analog sensors on micro:bit don't support hardware interrupts,
+    we poll them inside a periodic behavior.
     """
 
-    def __init__(self, moisture_art, env_art, period=3.0):
+    def __init__(self, moisture_art, env_art, period=2.0):
         super().__init__(period)
         self.moisture_art = moisture_art
         self.env_art = env_art
@@ -98,50 +97,53 @@ class SensorPoller(PeriodicBehaviour):
         self.env_art.read_sensors()
 
 
-class IrrigationBrain(PeriodicBehaviour):
-    """
-    Decision behavior that reads the current environment properties from the
-    agent KB (automatically synced via focus) and controls the valve.
-    """
-
-    def run(self):
-        # 1. Read parameters from KB
-        moisture = self.agent.get("moisture")
-        light = self.agent.get("light_level")
-        temp = self.agent.get("temperature")
-        valve_open = self.agent.get("valve_open")
-
-        print("Brain KB: Moisture={}, Light={}, Temp={}, ValveOpen={}".format(
-            moisture, light, temp, valve_open
-        ))
-
-        # 2. Irrigation Logic:
-        # - Water when soil is dry (moisture < 350)
-        # - Preferably water when light level is low (light < 80) to avoid evaporation
-        # - Stop watering if soil is sufficiently moist (moisture >= 600)
-        
-        valve = self.agent.valve
-
-        if moisture < 350 and light < 80:
-            if not valve_open:
-                print("Brain: Soil is dry & sun is low. Opening valve.")
-                valve.open_valve()
-        elif moisture >= 600 or (light >= 150 and valve_open):
-            if valve_open:
-                print("Brain: Soil is moist or sun is high. Closing valve.")
-                valve.close_valve()
-
-
 class GardenAgent(Agent):
     def setup(self):
-        # Focus on all artifacts by name to resolve them (local or remote)
+        # Focus on all artifacts by name to resolve them
         self.moisture_art = self.focus("soil_moisture")
         self.env_art = self.focus("environment")
         self.valve = self.focus("water_valve")
 
-        # Add behaviors
+        # Periodically poll the physical sensors
         self.add_behaviour(SensorPoller(self.moisture_art, self.env_art, period=2.0))
-        self.add_behaviour(IrrigationBrain(period=2.0))
+
+    # --- REACTIVE CALLBACKS ---
+
+    def on_moisture_change(self, value, artifact_name):
+        self.check_irrigation()
+
+    def on_light_level_change(self, value, artifact_name):
+        self.check_irrigation()
+
+    def on_temperature_change(self, value, artifact_name):
+        self.check_irrigation()
+
+    def check_irrigation(self):
+        """
+        Decision logic triggered reactively when environmental properties change.
+        """
+        moisture = self.get("moisture")
+        light = self.get("light_level")
+        valve_open = self.get("valve_open")
+
+        if moisture is None or light is None:
+            return
+
+        print("GardenAgent Check: Moisture={}, Light={}, ValveOpen={}".format(
+            moisture, light, valve_open
+        ))
+
+        # Irrigation Logic:
+        # - Water when soil is dry (moisture < 350) and sun is low (light < 80)
+        # - Stop watering if soil is sufficiently moist (moisture >= 600) or sun is high (light >= 150)
+        if moisture < 350 and light < 80:
+            if not valve_open:
+                print("GardenAgent: Soil is dry & sun is low. Opening valve.")
+                self.valve.open_valve()
+        elif moisture >= 600 or (light >= 150 and valve_open):
+            if valve_open:
+                print("GardenAgent: Soil is moist or sun is high. Closing valve.")
+                self.valve.close_valve()
 
 
 # ---------------------------------------------------------------------------
@@ -149,33 +151,11 @@ class GardenAgent(Agent):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # Create the artifacts (passing their registered names for automatic registration)
+    # Create the artifacts (which register themselves automatically)
     moisture_sensor = SoilMoistureSensor(name="soil_moisture")
     env_sensor = EnvironmentSensor(name="environment")
-    valve = WaterValve(name="water_valve")
+    valve_device = WaterValve(name="water_valve")
 
-    # Initialize agent
+    # Initialize and run agent
     agent = GardenAgent("garden_controller")
-
-    # Start the agent
-    agent.start()
-
-    print("Urban Garden controller starting... (Press Ctrl+C to exit)")
-    try:
-        # Run 6 cycles to show simulation
-        for cycle in range(6):
-            agent.step()
-            
-            # If running in simulation, artificially force a dry & dark state to trigger watering
-            import sys
-            if sys.platform != "microbit":
-                if cycle == 2:
-                    print("\n--- SIMULATION: Forcing dry & dark environment ---")
-                    moisture_sensor.update_property("moisture", 300)
-                    env_sensor.update_property("light_level", 50)
-                    print("--------------------------------------------------\n")
-                
-            sleep(2000)
-    finally:
-        agent.stop()
-        print("Controller stopped.")
+    agent.run()
