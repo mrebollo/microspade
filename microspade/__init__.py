@@ -20,15 +20,12 @@ Public API::
 
 from microspade.agent import Agent
 from microspade.artifact import Artifact, RemoteArtifactProxy
-from microspade.behaviour import (
-    Behaviour,
-    CyclicBehaviour,
-    OneShotBehaviour,
-    PeriodicBehaviour,
-    TimeoutBehaviour,
-    FSMBehaviour,
-    State,
-)
+from microspade.behaviour import Behaviour
+from microspade.cyclic_behaviour import CyclicBehaviour
+from microspade.oneshot_behaviour import OneShotBehaviour
+from microspade.periodic_behaviour import PeriodicBehaviour
+from microspade.timeout_behaviour import TimeoutBehaviour
+from microspade.fsm_behaviour import FSMBehaviour, State
 from microspade.message import Message, MessageTemplate
 from microspade.mailbox import Mailbox
 from microspade.transport import RadioTransport

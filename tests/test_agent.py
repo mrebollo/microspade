@@ -2,7 +2,7 @@
 
 import pytest
 from microspade.agent import Agent
-from microspade.behaviour import (
+from microspade import (
     CyclicBehaviour,
     OneShotBehaviour,
     PeriodicBehaviour,

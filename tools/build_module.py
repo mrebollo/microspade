@@ -3,12 +3,15 @@
 build_module.py
 
 Script to bundle all files in the microspade/ directory into a single
-microspade.py file for easy deployment on the micro:bit.
+microspade.py file for easy deployment on the micro:bit, or build them
+separately as flat modules.
 """
 
 import os
 import re
 import ast
+import sys
+import shutil
 
 FILES_ORDER = [
     "_compat.py",
@@ -18,12 +21,73 @@ FILES_ORDER = [
     "container.py",
     "artifact.py",
     "behaviour.py",
+    "cyclic_behaviour.py",
+    "oneshot_behaviour.py",
+    "periodic_behaviour.py",
+    "timeout_behaviour.py",
+    "fsm_behaviour.py",
     "agent.py",
 ]
 
-def minify(content):
-    """Remove comments and docstrings from Python source code using AST."""
+class ImportTransformer(ast.NodeTransformer):
+    IMPORT_MAPPING = {
+        "Agent": "agent",
+        "Artifact": "artifact",
+        "RemoteArtifactProxy": "artifact",
+        "Behaviour": "behaviour",
+        "CyclicBehaviour": "cyclic_behaviour",
+        "OneShotBehaviour": "oneshot_behaviour",
+        "PeriodicBehaviour": "periodic_behaviour",
+        "TimeoutBehaviour": "timeout_behaviour",
+        "FSMBehaviour": "fsm_behaviour",
+        "State": "fsm_behaviour",
+        "Message": "message",
+        "MessageTemplate": "message",
+        "Mailbox": "mailbox",
+        "RadioTransport": "transport",
+        "container": "container",
+    }
+
+    def visit_ImportFrom(self, node):
+        if node.module == "microspade":
+            # Group imported names by their target modules (flat modules)
+            modules_to_names = {}
+            for alias in node.names:
+                name = alias.name
+                target_module = self.IMPORT_MAPPING.get(name)
+                if target_module:
+                    if target_module not in modules_to_names:
+                        modules_to_names[target_module] = []
+                    modules_to_names[target_module].append(alias)
+                else:
+                    if "microspade" not in modules_to_names:
+                        modules_to_names["microspade"] = []
+                    modules_to_names["microspade"].append(alias)
+            
+            # Generate new ImportFrom nodes
+            new_nodes = []
+            for target_module, aliases in modules_to_names.items():
+                new_nodes.append(
+                    ast.ImportFrom(
+                        module=target_module,
+                        names=aliases,
+                        level=0
+                    )
+                )
+            return new_nodes
+
+        elif node.module and node.module.startswith("microspade."):
+            # Change from microspade.xyz to xyz
+            node.module = node.module[len("microspade."):]
+            return node
+
+        return node
+
+def minify_and_transform(content):
+    """Remove comments/docstrings and transform imports from microspade to flat submodules."""
     tree = ast.parse(content)
+    
+    # Remove docstrings
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Module)):
             if (node.body and isinstance(node.body[0], ast.Expr) and 
@@ -32,18 +96,94 @@ def minify(content):
                 node.body.pop(0)
                 if not node.body and isinstance(node, (ast.FunctionDef, ast.ClassDef)):
                     node.body.append(ast.Pass())
+                    
+    # Transform imports
+    transformer = ImportTransformer()
+    tree = transformer.visit(tree)
+    ast.fix_missing_locations(tree)
+    
     return ast.unparse(tree)
+
+def resolve_dependencies(dest_main_path, modular_dist_dir):
+    """
+    Recursively find all modular dependencies of the main script by parsing AST.
+    Returns a set of filenames (e.g., {'agent.py', 'behaviour.py'}).
+    """
+    valid_modules = {filename[:-3]: filename for filename in FILES_ORDER}
+    dependencies = set()
+    queue = []
+    
+    # Start with main.py if it exists
+    if os.path.exists(dest_main_path):
+        queue.append(('main', dest_main_path))
+        
+    while queue:
+        mod_name, filepath = queue.pop(0)
+        
+        if not os.path.exists(filepath):
+            continue
+            
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                content = f.read()
+            tree = ast.parse(content)
+        except Exception as e:
+            print(f"Warning: Could not parse {filepath} to resolve dependencies: {e}")
+            continue
+            
+        for node in ast.walk(tree):
+            dep_name = None
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    base_name = alias.name.split('.')[0]
+                    if base_name in valid_modules:
+                        dep_name = base_name
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    base_name = node.module.split('.')[0]
+                    if base_name in valid_modules:
+                        dep_name = base_name
+                        
+            if dep_name:
+                filename = valid_modules[dep_name]
+                if filename not in dependencies:
+                    dependencies.add(filename)
+                    dep_path = os.path.join(modular_dist_dir, filename)
+                    queue.append((dep_name, dep_path))
+                    
+    return dependencies
 
 def main():
     tools_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.dirname(tools_dir)
     src_dir = os.path.join(root_dir, "microspade")
     output_dir = os.path.join(root_dir, "dist")
-    output_path = os.path.join(output_dir, "microspade.py")
     
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
     
+    # Parse optional user script/project path
+    user_script_path = None
+    if len(sys.argv) > 1:
+        arg_path = sys.argv[1]
+        if not os.path.isabs(arg_path):
+            arg_path = os.path.abspath(os.path.join(os.getcwd(), arg_path))
+            
+        if os.path.isdir(arg_path):
+            main_py = os.path.join(arg_path, "main.py")
+            if os.path.exists(main_py):
+                user_script_path = main_py
+            else:
+                print(f"Error: main.py not found in {arg_path}")
+                sys.exit(1)
+        elif os.path.isfile(arg_path):
+            user_script_path = arg_path
+        else:
+            print(f"Error: path not found {arg_path}")
+            sys.exit(1)
+
+    # 1. Output the single-file bundled module (fallback/legacy)
+    output_path = os.path.join(output_dir, "microspade.py")
     bundled_content = [
         '# microbit-module: microspade@0.1.0',
         '"""',
@@ -59,22 +199,21 @@ def main():
             print(f"Error: {filepath} not found.")
             return
             
-        print(f"Processing and minifying {filename}...")
+        print(f"Processing and minifying for bundle: {filename}...")
         if filename == "_compat.py":
             content = "from utime import ticks_ms, ticks_diff, sleep_ms"
         else:
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
             try:
-                content = minify(content)
+                content = minify_and_transform(content)
             except Exception as e:
                 print(f"Warning: could not minify {filename} due to {e}")
             
-        # Remove internal imports
+        # Remove internal imports (for the single bundle)
         lines = content.splitlines()
         filtered_lines = []
         for line in lines:
-            # Match imports like: from microspade.xxx import yyy
             if re.match(r'^\s*from\s+microspade\b', line):
                 continue
             if re.match(r'^\s*import\s+microspade\b', line):
@@ -85,29 +224,89 @@ def main():
         bundled_content.extend(filtered_lines)
         bundled_content.append("")
         
-    # Append __all__ and version
     bundled_content.append("# --- Exports ---")
     bundled_content.append('__version__ = "0.1.0"')
     bundled_content.append("")
     bundled_content.append("__all__ = [")
-    bundled_content.append('    "Agent",')
-    bundled_content.append('    "CyclicBehaviour",')
-    bundled_content.append('    "OneShotBehaviour",')
-    bundled_content.append('    "PeriodicBehaviour",')
-    bundled_content.append('    "TimeoutBehaviour",')
-    bundled_content.append('    "FSMBehaviour",')
-    bundled_content.append('    "State",')
-    bundled_content.append('    "Message",')
-    bundled_content.append('    "MessageTemplate",')
-    bundled_content.append('    "RadioTransport",')
-    bundled_content.append('    "container",')
+    for item in [
+        "Agent", "CyclicBehaviour", "OneShotBehaviour", "PeriodicBehaviour",
+        "TimeoutBehaviour", "FSMBehaviour", "State", "Message", "MessageTemplate",
+        "RadioTransport", "container"
+    ]:
+        bundled_content.append(f'    "{item}",')
     bundled_content.append("]")
     bundled_content.append("")
     
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(bundled_content))
-        
     print(f"Successfully generated single-file module: {output_path}")
+
+    # 2. Output the modular package in dist/microspade/
+    modular_dist_dir = os.path.join(output_dir, "microspade")
+    os.makedirs(modular_dist_dir, exist_ok=True)
+
+    init_path = os.path.join(modular_dist_dir, "__init__.py")
+    with open(init_path, "w", encoding="utf-8") as f:
+        f.write("# microbit-module: microspade@0.1.0\n")
+
+    for filename in FILES_ORDER:
+        filepath = os.path.join(src_dir, filename)
+        dest_path = os.path.join(modular_dist_dir, filename)
+        module_name = filename[:-3]
+        
+        print(f"Generating modular module: {filename}...")
+        if filename == "_compat.py":
+            content = "from utime import ticks_ms, ticks_diff, sleep_ms"
+        else:
+            with open(filepath, "r", encoding="utf-8") as f:
+                content = f.read()
+            try:
+                content = minify_and_transform(content)
+            except Exception as e:
+                print(f"Warning: could not minify {filename} due to {e}")
+
+        # Prepend the micro:bit module header comment (flat module name)
+        header = f"# microbit-module: {module_name}@0.1.0\n"
+        content = header + content
+                
+        with open(dest_path, "w", encoding="utf-8") as f:
+            f.write(content)
+            
+    print(f"Successfully generated modular package in: {modular_dist_dir}")
+
+    # 3. Process the user script if provided
+    if user_script_path:
+        dest_main_path = os.path.join(output_dir, "main.py")
+        print(f"Processing user script: {user_script_path}...")
+        with open(user_script_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        try:
+            content = minify_and_transform(content)
+        except Exception as e:
+            print(f"Warning: could not process user script due to {e}")
+            
+        with open(dest_main_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"Successfully built user script to: {dest_main_path}")
+
+    # 4. Resolve dependencies if main.py was processed
+    dependencies_path = os.path.join(output_dir, "dependencies.txt")
+    if user_script_path:
+        dest_main_path = os.path.join(output_dir, "main.py")
+        print("Resolving required dependencies...")
+        deps = resolve_dependencies(dest_main_path, modular_dist_dir)
+        with open(dependencies_path, "w", encoding="utf-8") as f:
+            for dep in sorted(deps):
+                f.write(f"{dep}\n")
+        print(f"Generated dependency list ({len(deps)} modules): {dependencies_path}")
+        print("Required modules:", sorted(deps))
+    else:
+        # If no user script was built, remove old dependencies.txt if it exists
+        if os.path.exists(dependencies_path):
+            try:
+                os.remove(dependencies_path)
+            except:
+                pass
 
 if __name__ == "__main__":
     main()

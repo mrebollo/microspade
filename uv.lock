@@ -55,17 +55,112 @@ wheels = [
 ]
 
 [[package]]
+name = "microfs"
+version = "1.4.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyserial" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/34/80/55dded8f32e0bb0a2ed775e6221f65a007b9d6f9fbe1ab7cfbee403ae240/microfs-1.4.5.tar.gz", hash = "sha256:ea7e6ca5c1ed61ac4a60fa2a1552e390501f54bcf5051cdcd788a988f00b017c", size = 9091, upload-time = "2021-11-05T11:50:07.391Z" }
+
+[[package]]
 name = "microspade"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "microfs" },
+    { name = "mpremote", version = "1.25.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "mpremote", version = "1.28.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+    { name = "mpy-cross-v5", version = "1.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "mpy-cross-v5", version = "1.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+    { name = "pyserial" },
     { name = "pytest", version = "8.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "pytest", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
     { name = "pytest", version = "9.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pytest", specifier = ">=8.3.5" }]
+requires-dist = [
+    { name = "microfs", specifier = ">=1.4.5" },
+    { name = "mpremote", specifier = ">=1.25.0" },
+    { name = "mpy-cross-v5", specifier = ">=1.1.1" },
+    { name = "pyserial", specifier = ">=3.5" },
+    { name = "pytest", specifier = ">=8.3.5" },
+]
+
+[[package]]
+name = "mpremote"
+version = "1.25.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.9'",
+]
+dependencies = [
+    { name = "pyserial", marker = "python_full_version < '3.9'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/86/1d/4a194eb385133349954cbf269e673e59e28b9510c7805e955da1cd32f4c6/mpremote-1.25.0.tar.gz", hash = "sha256:d0dcd8ab364d87270e1766308882e536e541052efd64aadaac83bc7ebbea2815", size = 29082, upload-time = "2025-04-15T14:38:04.012Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/77/d43d7bf9aa637c7b2788c48fc4eb131a9bb4cb24568297453c2537fd621d/mpremote-1.25.0-py3-none-any.whl", hash = "sha256:42691ff8f7ea4b5f2fc1b51de99609995d383671a4b4d4daad8cbd486d26aa23", size = 33555, upload-time = "2025-04-15T14:38:02.68Z" },
+]
+
+[[package]]
+name = "mpremote"
+version = "1.28.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.10'",
+    "python_full_version == '3.9.*'",
+]
+dependencies = [
+    { name = "platformdirs", version = "4.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.9.*'" },
+    { name = "platformdirs", version = "4.10.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "pyserial", marker = "python_full_version >= '3.9'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/20/1b/d008342d1b018fb60e1196bf72a164ea71a567f924db11934f0e3a0a10bc/mpremote-1.28.0.tar.gz", hash = "sha256:fdb5626be83dff4e53c0184f8950814cb519b524dba7f1f8b1668aa477257a31", size = 31412, upload-time = "2026-04-06T13:21:14.976Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0f/d7/634a63290002a9df2708e05983fc769447d64f074ac2e8d8990316c70fd0/mpremote-1.28.0-py3-none-any.whl", hash = "sha256:2df2a50f3c8098cae8c732dbf2541e7e58185e7896513b45d05196901e049334", size = 36098, upload-time = "2026-04-06T13:21:13.368Z" },
+]
+
+[[package]]
+name = "mpy-cross-v5"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.9'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/ba/99ec689ad66521d97220073d1300d1b265c6fbb823bc6d2fffa3cef90698/mpy_cross_v5-1.1.1.tar.gz", hash = "sha256:71e7fa0fb49ca2192ba82142828ac43ac9167ed8165986788ab76ebc9c7e251d", size = 592739, upload-time = "2025-08-10T22:03:23.139Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ea/a1/bdca4d1d8473d0a353f6fb9954b39a6215c64d011d7cfef66f3ca9bff535/mpy_cross_v5-1.1.1-py3-none-macosx_10_13_x86_64.whl", hash = "sha256:e7e28be413df76e9efd904ee9d72cd559422c5d022b599d352f6b044e7450249", size = 140217, upload-time = "2025-08-10T22:03:15.293Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/53/62c32306bd27cd032d81c275d78700369ae20ae611f2b40cc8cfe294661a/mpy_cross_v5-1.1.1-py3-none-macosx_11_0_arm64.whl", hash = "sha256:13fdfaab4b17eb63d82baf01648f51d364375d1ce4769a91b1f04ae08e1d4845", size = 135797, upload-time = "2025-08-10T22:03:16.414Z" },
+    { url = "https://files.pythonhosted.org/packages/15/05/200ae5ebe73482026371f54dd1804cb370d8c2d555739ba216d2094ff59a/mpy_cross_v5-1.1.1-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8c5ca31c98a1d3b59c5b205c99d9ec55ae95bfc87f0aaed71702632eee27644b", size = 146358, upload-time = "2025-08-10T22:03:17.238Z" },
+    { url = "https://files.pythonhosted.org/packages/52/f7/83a1e4260ba6330e9df0854cbf200f7b22e2e57cdd1e2a509b29ff12d46f/mpy_cross_v5-1.1.1-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7716134c278820e51e8b8945ead91700400e89764ab563b018742ac0f434da57", size = 121802, upload-time = "2025-08-10T22:03:18.094Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/b9/3862d711a87b046e7243456cbe82372ef395498652d41e508c000c1d1b3a/mpy_cross_v5-1.1.1-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:40b27d1bd2990d5307f6a81fd49b40d6abc513400c197c4fb2ac053bb2717af9", size = 161895, upload-time = "2025-08-10T22:03:19.19Z" },
+    { url = "https://files.pythonhosted.org/packages/80/a7/6606e7a927f8fa3d53503dc7ab4d3b7d6c17b33ec44061a2f766311772e6/mpy_cross_v5-1.1.1-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:56334b2155d5684cdd599ca39123694183770bf2a906a15565f7c9d467870ea5", size = 137393, upload-time = "2025-08-10T22:03:19.952Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/33/6edae96c9a1be62498a279f763ed71050ba61ab913c01dda9074e0b4b3c9/mpy_cross_v5-1.1.1-py3-none-win32.whl", hash = "sha256:190bc2fed95140639e4d7497db69695fcba2e321da83c889ac96ad6607332018", size = 136619, upload-time = "2025-08-10T22:03:20.71Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/da/b0257eef8272d8092f96da864c0444de41ea73f9e1c1cc5c3c68886b8332/mpy_cross_v5-1.1.1-py3-none-win_amd64.whl", hash = "sha256:16a0ace5dc8beb9294ef49b99da9fda2a917c00728db25b1055e1223d1f92162", size = 136624, upload-time = "2025-08-10T22:03:21.545Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/76/e51e15c10d7de65f5108ccc291838046a2866a68abc733582ecb268fce16/mpy_cross_v5-1.1.1-py3-none-win_arm64.whl", hash = "sha256:1bd61af3505517bbaf7237b35a1cefd4ef761bd47fdab653ad75e4b11bdf4197", size = 136624, upload-time = "2025-08-10T22:03:22.312Z" },
+]
+
+[[package]]
+name = "mpy-cross-v5"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.10'",
+    "python_full_version == '3.9.*'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1f/bc/0ba7e304693112bb62b59eb9feb35477fae264bc57956ed7200a1fc941ce/mpy_cross_v5-1.1.2.tar.gz", hash = "sha256:550c672e2fc08c84a491544f7e28af504ccaeeb7eda2f84f4ad6800b78d0ed22", size = 593147, upload-time = "2025-11-29T19:25:04.633Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4e/4e/b8e0f716dd0c4e1c393fc945bb41a95df481c6b216d96bda7f848064a0fb/mpy_cross_v5-1.1.2-py3-none-macosx_10_13_x86_64.whl", hash = "sha256:ac7405882d1e3b7ec6690409768c05169e9a9e5dccc146ed41f353ef9a9974eb", size = 148726, upload-time = "2025-11-29T19:24:53.621Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/dc/892f9d1e7f3d48f11ba393ac14e73aad58f8f44724c7bb96ca24b2969b2e/mpy_cross_v5-1.1.2-py3-none-macosx_11_0_arm64.whl", hash = "sha256:7e2049bc3c64a44a323fdbdbcc8efda76e67fc1ed7d102253b5a51763f0f0d69", size = 146125, upload-time = "2025-11-29T19:24:54.796Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/1d/baec540d57d7c956ce4f9c3793181e1b797a4227cf385ee5a0b3e3789f9c/mpy_cross_v5-1.1.2-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:917a0b2262faeb672cd5002fff3bc21719c404bd7f6373a27e00fa4a2f7ac305", size = 146428, upload-time = "2025-11-29T19:24:56.175Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/d0/0199a1f0dfbc200cb3cf042f7554e6a65c301baa87c893a597086982733f/mpy_cross_v5-1.1.2-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d2facc7a05fa06ee6d52132dbd5c5aee993ff70553c6acf3fd7e118377b47bc6", size = 121842, upload-time = "2025-11-29T19:24:57.217Z" },
+    { url = "https://files.pythonhosted.org/packages/48/ab/f6909bbe7af230a81f6036d08eb9f19abc5bb351c07e51406bb6d5a3f88d/mpy_cross_v5-1.1.2-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:2e4782b34c75ed086ec5e4c61a727895c459dff6e06e35322b901cca9c7ba8d0", size = 162045, upload-time = "2025-11-29T19:24:58.272Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/51/122953746db27224ca13904bc577ab3394a03869ca21dc56ff3d6cb829ff/mpy_cross_v5-1.1.2-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:06f54bcc6907db4141869d337e2367932c261541131db871448cb8ce330012ac", size = 137506, upload-time = "2025-11-29T19:24:59.409Z" },
+    { url = "https://files.pythonhosted.org/packages/56/0a/9fef517dad5192b3353cc9dad02df5311479572ff2874043ce09d1debfbc/mpy_cross_v5-1.1.2-py3-none-win32.whl", hash = "sha256:5f4ebc86b9ab1c73e62b076af72c2abb8265c19ae6db32d0e6e44f561cdcf74d", size = 131724, upload-time = "2025-11-29T19:25:00.798Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/a2/8ff66c749ab839f87db92f1ab4ec4c8457c9a35e6669fd0f1bf4dfc979d9/mpy_cross_v5-1.1.2-py3-none-win_amd64.whl", hash = "sha256:c06dc83362a73b8589226e5f05774ef8e8e467292c85bc719d54531911729271", size = 134849, upload-time = "2025-11-29T19:25:02.205Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/93/b433636ee5473007b3dc1de23278f58704bdbcd602cdee92db61f8238f6c/mpy_cross_v5-1.1.2-py3-none-win_arm64.whl", hash = "sha256:138626574cb18501314190141dd0ed7259dbd98622d68a58119561494bc78840", size = 132710, upload-time = "2025-11-29T19:25:03.296Z" },
+]
 
 [[package]]
 name = "packaging"
@@ -74,6 +169,30 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/f1/e7a6dd94a8d4a5626c03e4e99c87f241ba9e350cd9e6d75123f992427270/packaging-26.2.tar.gz", hash = "sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661", size = 228134, upload-time = "2026-04-24T20:15:23.917Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl", hash = "sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e", size = 100195, upload-time = "2026-04-24T20:15:22.081Z" },
+]
+
+[[package]]
+name = "platformdirs"
+version = "4.4.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.9.*'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/23/e8/21db9c9987b0e728855bd57bff6984f67952bea55d6f75e055c46b5383e8/platformdirs-4.4.0.tar.gz", hash = "sha256:ca753cf4d81dc309bc67b0ea38fd15dc97bc30ce419a7f58d13eb3bf14c4febf", size = 21634, upload-time = "2025-08-26T14:32:04.268Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/40/4b/2028861e724d3bd36227adfa20d3fd24c3fc6d52032f4a93c133be5d17ce/platformdirs-4.4.0-py3-none-any.whl", hash = "sha256:abd01743f24e5287cd7a5db3752faf1a2d65353f38ec26d98e25a6db65958c85", size = 18654, upload-time = "2025-08-26T14:32:02.735Z" },
+]
+
+[[package]]
+name = "platformdirs"
+version = "4.10.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.10'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d7/47/e4501f49c178ae1d9f4a75073fda4204f52647993f075a9db4d14930e0c5/platformdirs-4.10.0.tar.gz", hash = "sha256:31e761a6a0ca04faf7353ea759bdba55652be214725111e5aac52dfa29d4bef7", size = 31224, upload-time = "2026-05-28T03:32:53.587Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/81/e6/cd9575ac904136b3cbf7aa7ee819ef86eedb7274e46f230e94ea4342e729/platformdirs-4.10.0-py3-none-any.whl", hash = "sha256:fb516cdb12eb0d857d0cd85a7c57cea4d060bee4578d6cf5a14dfdf8cbf8784a", size = 22743, upload-time = "2026-05-28T03:32:52.175Z" },
 ]
 
 [[package]]
@@ -108,6 +227,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152d655522fdcebac55e66de6603a76a02bca1b6414f6c/pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f", size = 4955991, upload-time = "2026-03-29T13:29:33.898Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151, upload-time = "2026-03-29T13:29:30.038Z" },
+]
+
+[[package]]
+name = "pyserial"
+version = "3.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/7d/ae3f0a63f41e4d2f6cb66a5b57197850f919f59e558159a4dd3a818f5082/pyserial-3.5.tar.gz", hash = "sha256:3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb", size = 159125, upload-time = "2020-11-23T03:59:15.045Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/bc/587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl", hash = "sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0", size = 90585, upload-time = "2020-11-23T03:59:13.41Z" },
 ]
 
 [[package]]

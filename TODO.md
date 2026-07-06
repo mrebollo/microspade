@@ -4,7 +4,7 @@ This file tracks pending bug fixes, improvements, and architectural ideas for th
 
 ---
 
-## 🐛 Open Issues
+##  Open Issues
 
 ### 1. Fix Generator Termination Bug in `environmental_monitor`
 *   **Severity:** Medium (Silent Failure)
@@ -21,7 +21,7 @@ This file tracks pending bug fixes, improvements, and architectural ideas for th
 
 ---
 
-## 💡 Proposed Features & Enhancements
+##  Proposed Features & Enhancements
 
 ### 2. Add Conditional Packaging Flags to `build_bundle.py`
 *   **Type:** Enhancement / Optimization
@@ -38,7 +38,7 @@ This file tracks pending bug fixes, improvements, and architectural ideas for th
     2.  Strip or mock out the artifact registration and observer syncing logic from `microspade/agent.py` and `microspade/container.py` during compilation.
     This keeps the main git repository unified under a single branch (`main`) while offering maximum byte size flexibility for deployment.
 
-## 🚀 Future Research & Architectural Proposals
+##  Future Research & Architectural Proposals
 
 ### 3. Advanced Agent Architectures: BDI & Brooks Subsumption
 *   **Type:** Architectural Extensions & Optimization
@@ -126,3 +126,7 @@ Provides reactive layered control (obstacle avoidance, wandering, targeting) whe
             print("BDI Supervisor: Switched to charging state, updated subsumption agenda.")
     ```
 *   **Result:** Only relevant behaviors are active, minimizing CPU scheduling overhead while maintaining hierarchical reactive control.
+
+##  (MRP) Don't forget
+- refactor to divide microspade.py in individual modules to avoid RAM problems in microbit
+- create a tool that suggest modifications to improve and compress the user's code

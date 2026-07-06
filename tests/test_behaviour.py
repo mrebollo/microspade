@@ -2,7 +2,7 @@
 
 import time
 import pytest
-from microspade.behaviour import (
+from microspade import (
     Behaviour,
     CyclicBehaviour,
     OneShotBehaviour,

@@ -1,30 +1,27 @@
 #!/usr/bin/env bash
-# flash.sh — Flash a Microspade agent to BBC micro:bit V2
+# flash.sh — Flash Microspade modular modules and main.py to BBC micro:bit V2
 #
 # Usage:
-#   bash tools/flash.sh examples/hello_agent.py
-#   bash tools/flash.sh projects/cutebot_controller/
-#   bash tools/flash.sh examples/hello_agent.py --firmware   # also flashes MicroPython first
+#   bash tools/flash.sh [--firmware]
 #
 # Requirements:
-#   - micro:bit V2 connected via USB (appears as /Volumes/MICROBIT)
-#   - dist/microspade.py must exist (run tools/build_module.py first)
-#   - curl (for --firmware download)
+#   - micro:bit V2 connected via USB
+#   - dist/microspade/ must exist (run tools/build_module.py first)
+#   - mpremote installed
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="$REPO_ROOT/dist"
-MICROSPADE_PY="$DIST_DIR/microspade.py"
-MICROBIT_VOLUME="/Volumes/MICROBIT"
+MICROSPADE_DIST_DIR="$DIST_DIR/microspade"
+MICROBIT_VOLUME="/Volumes/NO NAME"
 
 FIRMWARE_VERSION="v2.1.1"
 FIRMWARE_HEX="$DIST_DIR/micropython-${FIRMWARE_VERSION}.hex"
 FIRMWARE_URL="https://github.com/microbit-foundation/micropython-microbit-v2/releases/download/${FIRMWARE_VERSION}/micropython-microbit-${FIRMWARE_VERSION}.hex"
 
 FLASH_FIRMWARE=false
-INPUT_PATH=""
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -32,69 +29,49 @@ INPUT_PATH=""
 for arg in "$@"; do
     case "$arg" in
         --firmware) FLASH_FIRMWARE=true ;;
-        *)          INPUT_PATH="$arg" ;;
+        *)
+            echo "ERROR: Unknown argument: $arg"
+            echo "Usage: bash tools/flash.sh [--firmware]"
+            exit 1
+            ;;
     esac
 done
-
-if [[ -z "$INPUT_PATH" ]]; then
-    echo "Usage: bash tools/flash.sh <directory_or_file> [--firmware]"
-    echo ""
-    echo "  directory_or_file   Path to a project directory (with main.py) or a .py file"
-    echo "  --firmware          Download and flash MicroPython firmware first (only needed once)"
-    echo ""
-    echo "Examples:"
-    echo "  bash tools/flash.sh examples/hello_agent.py"
-    echo "  bash tools/flash.sh projects/cutebot_controller/"
-    echo "  bash tools/flash.sh examples/hello_agent.py --firmware"
-    exit 1
-fi
-
-# ---------------------------------------------------------------------------
-# Resolve main script and output name
-# ---------------------------------------------------------------------------
-# Make path absolute if relative
-if [[ "$INPUT_PATH" != /* ]]; then
-    INPUT_PATH="$REPO_ROOT/$INPUT_PATH"
-fi
-
-if [[ -d "$INPUT_PATH" ]]; then
-    MAIN_SCRIPT="$INPUT_PATH/main.py"
-    OUTPUT_NAME="$(basename "$INPUT_PATH")"
-    if [[ ! -f "$MAIN_SCRIPT" ]]; then
-        echo "ERROR: main.py not found in: $INPUT_PATH"
-        exit 1
-    fi
-elif [[ -f "$INPUT_PATH" ]]; then
-    if [[ "$INPUT_PATH" != *.py ]]; then
-        echo "ERROR: Expected a .py file, got: $INPUT_PATH"
-        exit 1
-    fi
-    MAIN_SCRIPT="$INPUT_PATH"
-    OUTPUT_NAME="$(basename "$INPUT_PATH" .py)"
-else
-    echo "ERROR: Path not found: $INPUT_PATH"
-    exit 1
-fi
 
 # ---------------------------------------------------------------------------
 # Validate prerequisites
 # ---------------------------------------------------------------------------
-if [[ ! -f "$MICROSPADE_PY" ]]; then
-    echo "ERROR: dist/microspade.py not found. Run first:"
-    echo "   uv run tools/build_module.py"
+if [[ ! -d "$MICROSPADE_DIST_DIR" ]]; then
+    echo "ERROR: dist/microspade/ not found. Run first:"
+    echo "   python3 tools/build_module.py"
     exit 1
 fi
 
-if [[ ! -d "$MICROBIT_VOLUME" ]]; then
-    echo "ERROR: micro:bit not found at $MICROBIT_VOLUME"
-    echo "   Connect the micro:bit via USB and try again."
+# Validate mpremote dependency
+if command -v mpremote &> /dev/null; then
+    MPREMOTE_CMD="mpremote"
+elif command -v uv &> /dev/null; then
+    MPREMOTE_CMD="uv run mpremote"
+else
+    echo "ERROR: 'mpremote' command not found."
+    echo "   Please install it with: uv pip install mpremote"
     exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# Step 1 (optional): Flash MicroPython firmware
+# Step 1 (optional): Flash MicroPython firmware via USB Mass Storage
 # ---------------------------------------------------------------------------
 if [[ "$FLASH_FIRMWARE" == true ]]; then
+    if [[ ! -d "$MICROBIT_VOLUME" ]]; then
+        # Try default Volume if custom one is not mounted
+        if [[ -d "/Volumes/MICROBIT" ]]; then
+            MICROBIT_VOLUME="/Volumes/MICROBIT"
+        else
+            echo "ERROR: micro:bit USB volume not found at $MICROBIT_VOLUME or /Volumes/MICROBIT"
+            echo "   Connect the micro:bit via USB and try again."
+            exit 1
+        fi
+    fi
+
     echo "Checking MicroPython firmware ${FIRMWARE_VERSION}..."
 
     if [[ ! -f "$FIRMWARE_HEX" ]]; then
@@ -127,20 +104,68 @@ if [[ "$FLASH_FIRMWARE" == true ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 2: Copy microspade.py to micro:bit filesystem
+# Step 2: Copy flat modules and main.py to micro:bit filesystem in a single session
 # ---------------------------------------------------------------------------
-echo "Copying microspade.py..."
-cp "$MICROSPADE_PY" "$MICROBIT_VOLUME/microspade.py"
+CLEANUP_CODE=$(cat << 'EOF'
+import os
+print("Files on micro:bit before cleanup:", os.listdir())
+def rm_rf(p):
+    try:
+        print("  Deleting:", p)
+        if os.stat(p)[0] & 0x4000:
+            for f in os.listdir(p):
+                rm_rf(p + '/' + f)
+            os.rmdir(p)
+        else:
+            os.remove(p)
+    except Exception as e:
+        print("  Failed to delete", p, ":", str(e))
+for f in os.listdir():
+    rm_rf(f)
+print("Files on micro:bit after cleanup:", os.listdir())
+EOF
+)
 
-# ---------------------------------------------------------------------------
-# Step 3: Copy main script as main.py
-# ---------------------------------------------------------------------------
-echo "Copying ${OUTPUT_NAME}.py as main.py..."
-cp "$MAIN_SCRIPT" "$MICROBIT_VOLUME/main.py"
+MPREMOTE_ARGS=("resume")
 
-echo ""
-echo "Done. Files on micro:bit:"
-echo "   microspade.py"
-echo "   main.py  (from $(basename "$MAIN_SCRIPT"))"
+# Clean up existing files recursively to free up all space
+MPREMOTE_ARGS+=("exec" "$CLEANUP_CODE" "+")
+
+if [[ -f "$DIST_DIR/dependencies.txt" ]]; then
+    echo "Reading dependencies list..."
+    while IFS= read -r filename || [[ -n "$filename" ]]; do
+        filename="$(echo "$filename" | xargs)"
+        if [[ -n "$filename" ]]; then
+            f="$MICROSPADE_DIST_DIR/$filename"
+            if [[ -f "$f" ]]; then
+                MPREMOTE_ARGS+=("cp" "$f" ":$filename" "+")
+            fi
+        fi
+    done < "$DIST_DIR/dependencies.txt"
+else
+    echo "Warning: dist/dependencies.txt not found. Copying all modules..."
+    for f in "$MICROSPADE_DIST_DIR"/*.py; do
+        filename="$(basename "$f")"
+        if [[ "$filename" != "__init__.py" ]]; then
+            MPREMOTE_ARGS+=("cp" "$f" ":$filename" "+")
+        fi
+    done
+fi
+
+if [[ -f "$DIST_DIR/main.py" ]]; then
+    MPREMOTE_ARGS+=("cp" "$DIST_DIR/main.py" ":main.py" "+")
+fi
+
+# Remove the trailing "+" if present
+last_idx=$(( ${#MPREMOTE_ARGS[@]} - 1 ))
+if [[ "$last_idx" -ge 0 && "${MPREMOTE_ARGS[last_idx]}" == "+" ]]; then
+    unset "MPREMOTE_ARGS[last_idx]"
+fi
+
+MPREMOTE_ARGS+=("+" "ls")
+
+echo "Uploading files to micro:bit in a single serial session..."
+$MPREMOTE_CMD "${MPREMOTE_ARGS[@]}"
+
 echo ""
 echo "Press the reset button on the micro:bit to run."

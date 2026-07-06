@@ -17,6 +17,10 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 dependencies = [
+    "microfs>=1.4.5",
+    "mpremote>=1.25.0",
+    "mpy-cross-v5>=1.1.1",
+    "pyserial>=3.5",
     "pytest>=8.3.5",
 ]
 
