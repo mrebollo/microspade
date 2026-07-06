@@ -1,3 +1,4 @@
+# microbit-module: ms_transport@0.1.0
 """
 Transport layer for microspade.
 
@@ -28,46 +29,37 @@ class RadioTransport:
         Maximum message length in bytes (default 32, max 251 on V2).
     """
 
-    DEFAULT_CHANNEL = 7
-    DEFAULT_POWER = 6
-    DEFAULT_QUEUE = 3
-    DEFAULT_LENGTH = 32
-
-    def __init__(self, channel=None, power=None, queue=None, length=None):
-        self._channel = channel if channel is not None else self.DEFAULT_CHANNEL
-        self._power = power if power is not None else self.DEFAULT_POWER
-        self._queue = queue if queue is not None else self.DEFAULT_QUEUE
-        self._length = length if length is not None else self.DEFAULT_LENGTH
+    def __init__(self, channel=7, power=6, queue=3, length=32):
+        self.config = {
+            "channel": channel,
+            "power": power,
+            "queue": queue,
+            "length": length,
+        }
         self._radio = None
 
     def setup(self):
         """Initialise and enable the radio module."""
         import radio  # noqa: PLC0415  (MicroPython built-in)
 
-        radio.config(
-            channel=self._channel,
-            power=self._power,
-            queue=self._queue,
-            length=self._length,
-        )
+        radio.config(**self.config)
         radio.on()
         self._radio = radio
 
     def send(self, data):
         """Transmit *data* (a string) over the radio."""
-        if self._radio is not None:
+        if self._radio:
             self._radio.send(data)
 
     def receive(self):
         """
         Return the next received string, or ``None`` if the queue is empty.
         """
-        if self._radio is not None:
-            return self._radio.receive()
-        return None
+        return self._radio.receive() if self._radio else None
 
     def teardown(self):
         """Turn off the radio and release resources."""
-        if self._radio is not None:
+        if self._radio:
             self._radio.off()
             self._radio = None
+

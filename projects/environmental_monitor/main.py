@@ -14,7 +14,10 @@ Interactions:
 
 from microbit import display, Image, temperature, button_a, microphone
 import music
-from microspade import Agent, CyclicBehaviour, PeriodicBehaviour
+from ms_agent import Agent
+from ms_cyclic import CyclicBehaviour
+from ms_periodic import PeriodicBehaviour
+from ms_log import log_kb
 
 
 # ---------------------------------------------------------------------------
@@ -37,7 +40,7 @@ class SensorReader(PeriodicBehaviour):
         self.agent.set("sound", microphone.sound_level())
 
         # Log agent state to flash memory
-        self.agent.log_kb()
+        log_kb(self.agent)
 
         # Print agent state to serial console
         print(self.agent)

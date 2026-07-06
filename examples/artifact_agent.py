@@ -8,7 +8,9 @@ updates the display when the physical temperature changes.
 
 from microbit import display, temperature
 import music
-from microspade import Agent, Artifact, PeriodicBehaviour
+from ms_agent import Agent
+from ms_artifact import Artifact
+from ms_periodic import PeriodicBehaviour
 
 
 # ---------------------------------------------------------------------------

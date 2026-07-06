@@ -7,7 +7,8 @@ to the serial console, and plays a rocket launch animation when the countdown en
 """
 
 from microbit import display, Image, sleep
-from microspade import Agent, CyclicBehaviour
+from ms_agent import Agent
+from ms_cyclic import CyclicBehaviour
 
 
 # ---------------------------------------------------------------------------
@@ -25,10 +26,20 @@ class CountdownBehaviour(CyclicBehaviour):
         if self.counter >= 0:
             print(self.counter)
             display.show(str(self.counter))
+            try:
+                import speech
+                speech.say(str(self.counter))
+            except ImportError:
+                pass
             sleep(1000)  # Wait 1 second between numbers
             self.counter -= 1
         else:
             print("Blastoff!")
+            try:
+                import speech
+                speech.say("Blastoff!")
+            except ImportError:
+                pass
             
             # Custom frames for a rocket taking off upwards
             rocket_frames = [
@@ -71,7 +82,8 @@ class CountdownBehaviour(CyclicBehaviour):
                       "00000:"
                       "00000:"
                       "00000:"
-                      "00000")
+                      "00000"),
+                Image() 
             ]
             
             # Play animation with 150ms between frames

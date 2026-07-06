@@ -1,4 +1,9 @@
-from microspade.behaviour import Behaviour
+# microbit-module: ms_fsm@0.1.0
+from ms_behaviour import Behaviour
+
+def _reset_generator(state):
+    state._generator = None
+    state._yield_deadline = None
 
 class State(Behaviour):
     """
@@ -68,9 +73,9 @@ class FSMBehaviour(Behaviour):
         initial:
             If ``True``, this state is the starting point.
         """
-        state.set_agent(self._agent)
+        state.set_agent(self.agent)
         self._states[name] = state
-        if initial:
+        if initial or self._current_state is None:
             self._current_state = name
 
     def add_transition(self, source, dest):
@@ -83,15 +88,21 @@ class FSMBehaviour(Behaviour):
             self._transitions[source] = []
         self._transitions[source].append(dest)
 
+    @property
+    def current_state(self):
+        """The name of the currently active state."""
+        return self._current_state
+
     # ------------------------------------------------------------------
     # Scheduler interface
     # ------------------------------------------------------------------
 
     def set_agent(self, agent):
         super().set_agent(agent)
-        # Propagate agent link to all registered states
+        # Propagate agent link and share FSM mailbox with all states
         for state in self._states.values():
             state.set_agent(agent)
+            state._mailbox = self._mailbox
 
     def _step(self):
         if self._is_done or self._current_state is None:
@@ -100,34 +111,26 @@ class FSMBehaviour(Behaviour):
 
         state = self._states[self._current_state]
 
-        # Call on_start on the first invocation of this state
+        # Call on_start on the first invocation of this state entry
         if not state._started:
             state.on_start()
             state._started = True
 
+        state._next_state = None
         state._step()
 
-        if state.done():
-            # Current state terminated. Find the next state.
-            next_state = state._next_state
-            state.on_end()
-            state._reset_generator()
-            state._is_done = False
-            state._started = False
-            state._next_state = None
-
+        next_state = state._next_state
+        if next_state is not None:
             # Verify and execute transition
-            if next_state is not None:
-                allowed = self._transitions.get(self._current_state)
-                # If no transitions are declared, allow any transition.
-                # Otherwise, check source -> dest is valid.
-                if not self._transitions or (allowed and next_state in allowed):
-                    self._current_state = next_state
-                else:
-                    # Invalid transition or none matches
-                    self._current_state = None
-                    self._is_done = True
-            else:
-                # Terminal transition (next_state is None)
-                self._current_state = None
-                self._is_done = True
+            allowed = self._transitions.get(self._current_state)
+            if not self._transitions or (allowed and next_state in allowed):
+                state.on_end()
+                _reset_generator(state)
+                state._started = False
+                state._is_done = False
+                self._current_state = next_state
+        elif state.done():
+            # State killed itself or generator completed -> FSM terminates
+            state.on_end()
+            _reset_generator(state)
+            self._is_done = True

@@ -1,3 +1,4 @@
+# microbit-module: ms_mailbox@0.1.0
 """
 A simple FIFO message queue (mailbox) for microspade behaviours.
 
@@ -16,11 +17,9 @@ class Mailbox:
         Defaults to 10.
     """
 
-    DEFAULT_CAPACITY = 10
-
-    def __init__(self, capacity=None):
+    def __init__(self, capacity=10):
         self._queue = []
-        self._capacity = capacity if capacity is not None else self.DEFAULT_CAPACITY
+        self._capacity = capacity
 
     def put(self, message):
         """
@@ -37,18 +36,4 @@ class Mailbox:
         """
         Dequeue and return the oldest message, or ``None`` if empty.
         """
-        if self._queue:
-            return self._queue.pop(0)
-        return None
-
-    def empty(self):
-        """Return ``True`` when there are no queued messages."""
-        return len(self._queue) == 0
-
-    def size(self):
-        """Return the number of queued messages."""
-        return len(self._queue)
-
-    def clear(self):
-        """Discard all queued messages."""
-        self._queue = []
+        return self._queue.pop(0) if self._queue else None

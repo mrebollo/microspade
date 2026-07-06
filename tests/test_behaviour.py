@@ -2,16 +2,13 @@
 
 import time
 import pytest
-from microspade import (
-    Behaviour,
-    CyclicBehaviour,
-    OneShotBehaviour,
-    PeriodicBehaviour,
-    TimeoutBehaviour,
-    FSMBehaviour,
-    State,
-)
-from microspade.message import Message
+from ms_behaviour import Behaviour
+from ms_cyclic import CyclicBehaviour
+from ms_oneshot import OneShotBehaviour
+from ms_periodic import PeriodicBehaviour
+from ms_timeout import TimeoutBehaviour
+from ms_fsm import FSMBehaviour, State
+from ms_message import Message
 
 
 # ---------------------------------------------------------------------------

@@ -1,16 +1,13 @@
 """Tests for Agent and AgentContainer."""
 
 import pytest
-from microspade.agent import Agent
-from microspade import (
-    CyclicBehaviour,
-    OneShotBehaviour,
-    PeriodicBehaviour,
-    FSMBehaviour,
-    State,
-)
-from microspade.message import Message, MessageTemplate
-from microspade.container import _AgentContainer
+from ms_agent import Agent
+from ms_cyclic import CyclicBehaviour
+from ms_oneshot import OneShotBehaviour
+from ms_periodic import PeriodicBehaviour
+from ms_fsm import FSMBehaviour, State
+from ms_message import Message, MessageTemplate
+from ms_container import container
 from tests.mocks import MockTransport
 
 
@@ -33,13 +30,13 @@ def make_agent(name="test_agent"):
 
 class TestAgentLifecycle:
     def setup_method(self):
-        _AgentContainer.instance().reset()
+        container.reset()
         self.agent, self.transport = make_agent()
 
     def teardown_method(self):
         if self.agent.is_alive():
             self.agent.stop()
-        _AgentContainer.instance().reset()
+        container.reset()
 
     def test_start_calls_transport_setup(self):
         assert self.transport._setup_called
@@ -62,7 +59,7 @@ class TestAgentLifecycle:
             def setup(self):
                 setup_calls.append(1)
 
-        _AgentContainer.instance().reset()
+        container.reset()
         a = MyAgent("a2", transport=MockTransport())
         a.start()
         assert len(setup_calls) == 1
@@ -73,7 +70,7 @@ class TestAgentLifecycle:
             def setup(self):
                 self.add_behaviour(OneShotBehaviour())
 
-        _AgentContainer.instance().reset()
+        container.reset()
         a = MyAgent("a3", transport=MockTransport())
         a.start()
         assert len(a._behaviours) == 1
@@ -87,13 +84,13 @@ class TestAgentLifecycle:
 
 class TestBehaviourManagement:
     def setup_method(self):
-        _AgentContainer.instance().reset()
+        container.reset()
         self.agent, self.transport = make_agent()
 
     def teardown_method(self):
         if self.agent.is_alive():
             self.agent.stop()
-        _AgentContainer.instance().reset()
+        container.reset()
 
     def test_add_behaviour(self):
         b = OneShotBehaviour()
@@ -185,13 +182,13 @@ class TestBehaviourManagement:
 
 class TestAgentMessaging:
     def setup_method(self):
-        _AgentContainer.instance().reset()
+        container.reset()
         self.agent, self.transport = make_agent()
 
     def teardown_method(self):
         if self.agent.is_alive():
             self.agent.stop()
-        _AgentContainer.instance().reset()
+        container.reset()
 
     def test_send_uses_transport(self):
         msg = Message(to="other", body="hello")
@@ -336,13 +333,13 @@ class TestAgentMessaging:
 
 class TestAgentKnowledgeBase:
     def setup_method(self):
-        _AgentContainer.instance().reset()
+        container.reset()
         self.agent, _ = make_agent()
 
     def teardown_method(self):
         if self.agent.is_alive():
             self.agent.stop()
-        _AgentContainer.instance().reset()
+        container.reset()
 
     def test_set_and_get(self):
         self.agent.set("counter", 42)
@@ -371,7 +368,7 @@ class TestAgentKnowledgeBase:
 
 class TestLocalRouting:
     def setup_method(self):
-        _AgentContainer.instance().reset()
+        container.reset()
         self.t1 = MockTransport()
         self.t2 = MockTransport()
         self.a1 = Agent("alice", transport=self.t1)
@@ -384,7 +381,7 @@ class TestLocalRouting:
             self.a1.stop()
         if self.a2.is_alive():
             self.a2.stop()
-        _AgentContainer.instance().reset()
+        container.reset()
 
     def test_local_message_does_not_use_transport(self):
         """Messages between registered local agents bypass the radio."""
@@ -421,13 +418,13 @@ class TestLocalRouting:
 
 class TestFSMIntegration:
     def setup_method(self):
-        _AgentContainer.instance().reset()
+        container.reset()
         self.agent, self.transport = make_agent()
 
     def teardown_method(self):
         if self.agent.is_alive():
             self.agent.stop()
-        _AgentContainer.instance().reset()
+        container.reset()
 
     def test_fsm_runs_through_states(self):
         log = []

@@ -1,4 +1,5 @@
-from microspade.behaviour import Behaviour
+# microbit-module: ms_cyclic@0.1.0
+from ms_behaviour import Behaviour
 
 class CyclicBehaviour(Behaviour):
     """
@@ -6,6 +7,4 @@ class CyclicBehaviour(Behaviour):
 
     It terminates only when :meth:`kill` is called.
     """
-
-    def done(self):
-        return self._is_done
+    pass

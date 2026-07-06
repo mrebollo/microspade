@@ -1,0 +1,272 @@
+# microbit-module: ms_agent@0.1.0
+"""
+Agent base class for microspade.
+
+An :class:`Agent` owns a list of :class:`~microspade.behaviour.Behaviour`
+objects and drives them through a cooperative scheduler.  Communication
+uses the micro:bit radio (via :class:`~microspade.transport.RadioTransport`)
+for cross-board messaging and an in-process
+:class:`~microspade.container.container` for same-board local routing.
+
+Typical usage
+-------------
+::
+
+    from microspade import Agent, CyclicBehaviour, Message
+
+    class Greeter(CyclicBehaviour):
+        def run(self):
+            msg = self.receive()
+            if msg:
+                print("Got:", msg.body)
+
+    class MyAgent(Agent):
+        def setup(self):
+            self.add_behaviour(Greeter())
+
+    agent = MyAgent("greeter")
+    agent.run()       # blocks forever (press Ctrl-C to stop)
+"""
+
+
+
+from ms_container import container
+from utime import sleep_ms
+
+
+def _cast_val(v):
+    if v == "True": return True
+    if v == "False": return False
+    if v.isdigit(): return int(v)
+    try: return float(v)
+    except ValueError: return v
+
+
+class Agent:
+    """
+    Base class for microspade agents.
+
+    Parameters
+    ----------
+    name:
+        Unique string identifier for this agent.  Used for message
+        addressing (equivalent to a SPADE JID).
+    transport:
+        An object with ``setup()``, ``send(data)``, ``receive()``, and
+        ``teardown()`` methods.  Defaults to
+        :class:`~microspade.transport.RadioTransport`.
+    """
+
+    def __init__(self, name, transport=None, enable_log=False):
+        self.name = name
+        if transport is None:
+            from ms_transport import RadioTransport
+            transport = RadioTransport()
+        self._transport = transport
+        self._behaviours = []  # list of dicts: {behaviour, started, template}
+        self._running = False
+        self._log_state = None if enable_log else False
+        self._kb = {}
+
+    def __str__(self):
+        return "[" + self.name + "] " + str(self._kb)
+
+    # ------------------------------------------------------------------
+    # User-overridable hooks
+    # ------------------------------------------------------------------
+
+    def setup(self):
+        """
+        Called once when the agent starts.
+
+        Override to add initial behaviours::
+
+            def setup(self):
+                self.add_behaviour(MyBehaviour())
+        """
+
+
+    # ------------------------------------------------------------------
+    # Behaviour management
+    # ------------------------------------------------------------------
+
+    def add_behaviour(self, behaviour, template=None):
+        """
+        Register *behaviour* with this agent.
+
+        Parameters
+        ----------
+        behaviour:
+            A :class:`~microspade.behaviour.Behaviour` instance.
+        template:
+            Optional :class:`~microspade.message.MessageTemplate`.
+            Only messages that match the template are delivered to this
+            behaviour's mailbox.  ``None`` means *receive all*.
+        """
+        behaviour.set_agent(self)
+        behaviour._template = template
+        self._behaviours.append(behaviour)
+
+    def remove_behaviour(self, behaviour):
+        """Remove *behaviour* from the scheduler."""
+        if behaviour in self._behaviours:
+            self._behaviours.remove(behaviour)
+
+    def has_behaviour(self, behaviour):
+        """Return ``True`` if *behaviour* is currently registered."""
+        return behaviour in self._behaviours
+
+    # ------------------------------------------------------------------
+    # Messaging
+    # ------------------------------------------------------------------
+
+    def send(self, message):
+        """
+        Send *message*.
+
+        The sender field is auto-filled with this agent's name when not
+        already set.  The message is delivered locally if the destination
+        agent runs in the same program; otherwise it is transmitted over
+        the radio transport.
+        """
+        if message.sender is None:
+            message.sender = self.name
+
+        # Try local delivery first (same micro:bit / test environment).
+        if message.to is not None and message.to in container.agents:
+            container.dispatch(message)
+        else:
+            self._transport.send(message.encode())
+
+    def _poll_transport(self):
+        """Read one frame from the transport and dispatch it if addressed to us."""
+        raw = self._transport.receive()
+        if not raw:
+            return
+
+        from ms_message import Message
+        msg = Message.decode(raw)
+        if msg is None:
+            return
+
+        # 1. Remote operation execution request
+        if msg.performative == "request" and msg.body.startswith("op|"):
+            parts = msg.body.split("|")
+            if len(parts) >= 3:
+                art = container.artifacts.get(parts[1])
+                method = getattr(art, parts[2], None) if art else None
+                if method:
+                    method(*[_cast_val(arg) for arg in parts[3:]])
+            return
+
+        # 2. Remote property update notification
+        if msg.performative == "inform" and msg.body.startswith("prop|"):
+            parts = msg.body.split("|")
+            if len(parts) >= 4 and hasattr(self, "_focused_proxies") and parts[1] in self._focused_proxies:
+                self._receive_property_update(parts[1], parts[2], _cast_val(parts[3]))
+            return
+
+        if self._accepts(msg):
+            self._dispatch(msg)
+
+    def _accepts(self, msg):
+        """Return ``True`` if this agent should process *msg*."""
+        return msg.to is None or msg.to == self.name or msg.to == "*"
+
+    def _dispatch(self, msg):
+        """
+        Deliver *msg* to the first behaviour whose template matches.
+
+        Unmatched messages are silently discarded (same as SPADE).
+        """
+        for b in self._behaviours:
+            if b._template is None or b._template.match(msg):
+                b._mailbox.put(msg)
+                return  # deliver to first match only
+
+    # ------------------------------------------------------------------
+    # Agent knowledge base (key/value store shared between behaviours)
+    # ------------------------------------------------------------------
+
+
+    def set(self, key, value):
+        """Store *value* under *key* in the agent's knowledge base."""
+        self._kb[key] = value
+
+    def get(self, key):
+        """Retrieve a value from the knowledge base, or ``None``."""
+        return self._kb.get(key)
+
+
+
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def start(self):
+        """Initialise the transport, register in the container and call :meth:`setup`."""
+        self._transport.setup()
+        container.register(self)
+        self._running = True
+        self.setup()
+
+    def stop(self):
+        """Stop the scheduler and release the transport."""
+        self._running = False
+        container.unregister(self)
+        self._transport.teardown()
+
+    def is_alive(self):
+        """Return ``True`` while the agent is running."""
+        return self._running
+
+    # ------------------------------------------------------------------
+    # Scheduler
+    # ------------------------------------------------------------------
+
+    def step(self):
+        """
+        Perform one full scheduling cycle.
+
+        1. Poll the radio for incoming messages.
+        2. Call ``on_start`` on any newly added behaviour.
+        3. Call ``_step()`` on each active behaviour.
+        4. Remove behaviours that have finished.
+        """
+        # 1. Receive at most one frame per cycle to stay responsive.
+        self._poll_transport()
+
+        # 2 + 3. Step each behaviour.
+        i = 0
+        while i < len(self._behaviours):
+            b = self._behaviours[i]
+            if not b._started:
+                b.on_start()
+                b._started = True
+
+            b._step()
+
+            if b.done():
+                b.on_end()
+                self._behaviours.pop(i)
+            else:
+                i += 1
+
+    def run(self):
+        """
+        Start the agent and execute the main scheduling loop.
+
+        Blocks until :meth:`stop` is called or a ``KeyboardInterrupt``
+        is received (useful for desktop testing).
+        """
+        self.start()
+        try:
+            while self._running:
+                self.step()
+                sleep_ms(10)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            if self._running:
+                self.stop()

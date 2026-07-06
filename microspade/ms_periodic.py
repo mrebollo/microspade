@@ -1,5 +1,6 @@
-from microspade._compat import ticks_ms, ticks_diff
-from microspade.behaviour import Behaviour
+# microbit-module: ms_periodic@0.1.0
+from utime import ticks_ms, ticks_diff
+from ms_behaviour import Behaviour
 
 class PeriodicBehaviour(Behaviour):
     """
@@ -27,6 +28,3 @@ class PeriodicBehaviour(Behaviour):
         ):
             self._last_run = now
             self.run()
-
-    def done(self):
-        return self._is_done

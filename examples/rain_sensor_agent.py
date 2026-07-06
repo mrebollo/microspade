@@ -8,7 +8,8 @@ using dynamic convention-based callbacks, avoiding any polling behaviour.
 
 from microbit import display
 import machine
-from microspade import Agent, Artifact
+from ms_agent import Agent
+from ms_artifact import Artifact
 
 
 # ---------------------------------------------------------------------------

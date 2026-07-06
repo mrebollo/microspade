@@ -130,3 +130,6 @@ Provides reactive layered control (obstacle avoidance, wandering, targeting) whe
 ##  (MRP) Don't forget
 - refactor to divide microspade.py in individual modules to avoid RAM problems in microbit
 - create a tool that suggest modifications to improve and compress the user's code
+- improve code generation
+- implement decision trees to data analysis (fits in microbit)
+- connect with raspberry to execute complex behaviours -> create spade artifact for microbit

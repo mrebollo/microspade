@@ -14,38 +14,56 @@ import sys
 import shutil
 
 FILES_ORDER = [
-    "_compat.py",
-    "mailbox.py",
-    "message.py",
-    "transport.py",
-    "container.py",
-    "artifact.py",
-    "behaviour.py",
-    "cyclic_behaviour.py",
-    "oneshot_behaviour.py",
-    "periodic_behaviour.py",
-    "timeout_behaviour.py",
-    "fsm_behaviour.py",
-    "agent.py",
+    "ms_mailbox.py",
+    "ms_message.py",
+    "ms_transport.py",
+    "ms_container.py",
+    "ms_agent.py",
+    "ms_artifact.py",
+    "ms_behaviour.py",
+    "ms_cyclic.py",
+    "ms_oneshot.py",
+    "ms_periodic.py",
+    "ms_timeout.py",
+    "ms_fsm.py",
+    "ms_log.py",
 ]
 
 class ImportTransformer(ast.NodeTransformer):
     IMPORT_MAPPING = {
-        "Agent": "agent",
-        "Artifact": "artifact",
-        "RemoteArtifactProxy": "artifact",
-        "Behaviour": "behaviour",
-        "CyclicBehaviour": "cyclic_behaviour",
-        "OneShotBehaviour": "oneshot_behaviour",
-        "PeriodicBehaviour": "periodic_behaviour",
-        "TimeoutBehaviour": "timeout_behaviour",
-        "FSMBehaviour": "fsm_behaviour",
-        "State": "fsm_behaviour",
-        "Message": "message",
-        "MessageTemplate": "message",
-        "Mailbox": "mailbox",
-        "RadioTransport": "transport",
-        "container": "container",
+        "Agent": "ms_agent",
+        "Artifact": "ms_artifact",
+        "RemoteArtifactProxy": "ms_artifact",
+        "Behaviour": "ms_behaviour",
+        "CyclicBehaviour": "ms_cyclic",
+        "OneShotBehaviour": "ms_oneshot",
+        "PeriodicBehaviour": "ms_periodic",
+        "TimeoutBehaviour": "ms_timeout",
+        "FSMBehaviour": "ms_fsm",
+        "State": "ms_fsm",
+        "Message": "ms_message",
+        "MessageTemplate": "ms_message",
+        "Mailbox": "ms_mailbox",
+        "RadioTransport": "ms_transport",
+        "container": "ms_container",
+        "log_kb": "ms_log",
+    }
+
+
+    MODULE_MAPPING = {
+        "agent": "ms_agent",
+        "artifact": "ms_artifact",
+        "behaviour": "ms_behaviour",
+        "cyclic_behaviour": "ms_cyclic",
+        "oneshot_behaviour": "ms_oneshot",
+        "periodic_behaviour": "ms_periodic",
+        "timeout_behaviour": "ms_timeout",
+        "fsm_behaviour": "ms_fsm",
+        "message": "ms_message",
+        "mailbox": "ms_mailbox",
+        "transport": "ms_transport",
+        "container": "ms_container",
+        "log": "ms_log",
     }
 
     def visit_ImportFrom(self, node):
@@ -77,13 +95,14 @@ class ImportTransformer(ast.NodeTransformer):
             return new_nodes
 
         elif node.module and node.module.startswith("microspade."):
-            # Change from microspade.xyz to xyz
-            node.module = node.module[len("microspade."):]
+            # Change from microspade.xyz to flat module name
+            submodule = node.module[len("microspade."):]
+            node.module = self.MODULE_MAPPING.get(submodule, submodule)
             return node
 
         return node
 
-def minify_and_transform(content):
+def minify_and_transform(content, debug_mode=False):
     """Remove comments/docstrings and transform imports from microspade to flat submodules."""
     tree = ast.parse(content)
     
@@ -97,6 +116,16 @@ def minify_and_transform(content):
                 if not node.body and isinstance(node, (ast.FunctionDef, ast.ClassDef)):
                     node.body.append(ast.Pass())
                     
+    # Remove debug functions (like __repr__) if not in debug mode
+    if not debug_mode:
+        class DebugStripper(ast.NodeTransformer):
+            def visit_FunctionDef(self, node):
+                if node.name == "__repr__":
+                    return None
+                return self.generic_visit(node)
+        tree = DebugStripper().visit(tree)
+        ast.fix_missing_locations(tree)
+
     # Transform imports
     transformer = ImportTransformer()
     tree = transformer.visit(tree)
@@ -162,6 +191,15 @@ def main():
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
     
+    # Parse optional debug mode
+    debug_mode = False
+    if "--debug" in sys.argv:
+        debug_mode = True
+        sys.argv.remove("--debug")
+    elif "-debug" in sys.argv:
+        debug_mode = True
+        sys.argv.remove("-debug")
+
     # Parse optional user script/project path
     user_script_path = None
     if len(sys.argv) > 1:
@@ -200,23 +238,20 @@ def main():
             return
             
         print(f"Processing and minifying for bundle: {filename}...")
-        if filename == "_compat.py":
-            content = "from utime import ticks_ms, ticks_diff, sleep_ms"
-        else:
-            with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read()
-            try:
-                content = minify_and_transform(content)
-            except Exception as e:
-                print(f"Warning: could not minify {filename} due to {e}")
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+        try:
+            content = minify_and_transform(content, debug_mode)
+        except Exception as e:
+            print(f"Warning: could not minify {filename} due to {e}")
             
         # Remove internal imports (for the single bundle)
         lines = content.splitlines()
         filtered_lines = []
         for line in lines:
-            if re.match(r'^\s*from\s+microspade\b', line):
+            if re.match(r'^\s*from\s+(microspade|ms_[a-zA-Z0-9_]+)\b', line):
                 continue
-            if re.match(r'^\s*import\s+microspade\b', line):
+            if re.match(r'^\s*import\s+(microspade|ms_[a-zA-Z0-9_]+)\b', line):
                 continue
             filtered_lines.append(line)
             
@@ -255,15 +290,12 @@ def main():
         module_name = filename[:-3]
         
         print(f"Generating modular module: {filename}...")
-        if filename == "_compat.py":
-            content = "from utime import ticks_ms, ticks_diff, sleep_ms"
-        else:
-            with open(filepath, "r", encoding="utf-8") as f:
-                content = f.read()
-            try:
-                content = minify_and_transform(content)
-            except Exception as e:
-                print(f"Warning: could not minify {filename} due to {e}")
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+        try:
+            content = minify_and_transform(content, debug_mode)
+        except Exception as e:
+            print(f"Warning: could not minify {filename} due to {e}")
 
         # Prepend the micro:bit module header comment (flat module name)
         header = f"# microbit-module: {module_name}@0.1.0\n"
@@ -281,7 +313,7 @@ def main():
         with open(user_script_path, "r", encoding="utf-8") as f:
             content = f.read()
         try:
-            content = minify_and_transform(content)
+            content = minify_and_transform(content, debug_mode)
         except Exception as e:
             print(f"Warning: could not process user script due to {e}")
             

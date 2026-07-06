@@ -1,7 +1,8 @@
 """Tests for the Artifact class."""
 
 import pytest
-from microspade import Agent, Artifact
+from ms_agent import Agent
+from ms_artifact import Artifact
 
 def test_define_and_update_property():
     art = Artifact()
@@ -68,20 +69,20 @@ def test_remove_observer_stops_updates():
 
 
 def test_container_artifact_registration():
-    from microspade.container import container
+    from ms_container import container
     container.reset()
     
     art = Artifact()
-    assert not container.has_artifact("sensor1")
+    assert "sensor1" not in container.artifacts
     
     container.register_artifact("sensor1", art)
-    assert container.has_artifact("sensor1")
-    assert container.get_artifact("sensor1") is art
+    assert "sensor1" in container.artifacts
+    assert container.artifacts.get("sensor1") is art
     assert art.name == "sensor1"
 
 
 def test_local_focus_by_name():
-    from microspade.container import container
+    from ms_container import container
     container.reset()
 
     class DummyAgent(Agent):
@@ -104,8 +105,8 @@ def test_local_focus_by_name():
 
 
 def test_remote_focus_by_name_creates_proxy():
-    from microspade.container import container
-    from microspade.artifact import RemoteArtifactProxy
+    from ms_container import container
+    from ms_artifact import RemoteArtifactProxy
     container.reset()
 
     class DummyAgent(Agent):
@@ -123,7 +124,7 @@ def test_remote_focus_by_name_creates_proxy():
 
 def test_remote_operation_routing():
     from tests.mocks import MockTransport
-    from microspade.message import Message
+    from ms_message import Message
 
     class DummyAgent(Agent):
         def setup(self):
@@ -148,7 +149,7 @@ def test_remote_operation_routing():
 
 def test_remote_property_update_decoding():
     from tests.mocks import MockTransport
-    from microspade.message import Message
+    from ms_message import Message
 
     class DummyAgent(Agent):
         def setup(self):
@@ -172,8 +173,8 @@ def test_remote_property_update_decoding():
 
 def test_remote_operation_execution():
     from tests.mocks import MockTransport
-    from microspade.container import container
-    from microspade.message import Message
+    from ms_container import container
+    from ms_message import Message
     container.reset()
 
     class CustomHeater(Artifact):

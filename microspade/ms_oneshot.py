@@ -1,4 +1,5 @@
-from microspade.behaviour import Behaviour
+# microbit-module: ms_oneshot@0.1.0
+from ms_behaviour import Behaviour
 
 class OneShotBehaviour(Behaviour):
     """

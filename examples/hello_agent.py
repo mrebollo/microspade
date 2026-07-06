@@ -6,7 +6,8 @@ prints a message to the serial console and scrolls it on the display.
 """
 
 from microbit import display
-from microspade import Agent, OneShotBehaviour
+from ms_agent import Agent
+from ms_oneshot import OneShotBehaviour
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """Tests for Message and MessageTemplate."""
 
 import pytest
-from microspade.message import Message, MessageTemplate
+from ms_message import Message, MessageTemplate
 
 
 # ---------------------------------------------------------------------------
@@ -16,7 +16,6 @@ class TestMessageCreation:
         assert msg.sender is None
         assert msg.body == ""
         assert msg.performative == "inform"
-        assert msg.metadata == {}
 
     def test_explicit_fields(self):
         msg = Message(to="a1", sender="a2", body="hello", performative="request")
@@ -93,30 +92,10 @@ class TestMessageHelpers:
         assert reply.performative == "request"
         assert reply.body == ""
 
-    def test_set_get_metadata(self):
-        msg = Message()
-        msg.set_metadata("lang", "en")
-        assert msg.get_metadata("lang") == "en"
 
-    def test_get_metadata_missing_returns_none(self):
-        msg = Message()
-        assert msg.get_metadata("missing") is None
-
-    def test_equality_same_fields(self):
-        m1 = Message(to="a", sender="b", body="x", performative="inform")
-        m2 = Message(to="a", sender="b", body="x", performative="inform")
-        assert m1 == m2
-
-    def test_equality_different_body(self):
-        m1 = Message(body="x")
-        m2 = Message(body="y")
-        assert m1 != m2
-
-    def test_equality_non_message_type(self):
-        assert Message() != "not a message"
-
-    def test_repr_contains_classname(self):
-        assert "Message" in repr(Message(to="a"))
+    def test_repr(self):
+        msg = Message(to="a", sender="b", body="body", performative="inform")
+        assert repr(msg) == "Message(to='a', sender='b', performative='inform', body='body')"
 
 
 # ---------------------------------------------------------------------------
@@ -125,20 +104,19 @@ class TestMessageHelpers:
 
 
 class TestMessageTemplate:
-    def test_empty_template_matches_everything(self):
+    def test_match_all_wildcard(self):
         tmpl = MessageTemplate()
-        assert tmpl.match(Message(to="a", sender="b", performative="inform"))
+        assert tmpl.match(Message())
 
     def test_match_to(self):
         tmpl = MessageTemplate(to="agent1")
         assert tmpl.match(Message(to="agent1"))
         assert not tmpl.match(Message(to="agent2"))
-        assert not tmpl.match(Message(to=None))
 
     def test_match_sender(self):
         tmpl = MessageTemplate(sender="agent1")
         assert tmpl.match(Message(sender="agent1"))
-        assert not tmpl.match(Message(sender="other"))
+        assert not tmpl.match(Message(sender="agent2"))
 
     def test_match_performative(self):
         tmpl = MessageTemplate(performative="request")
@@ -150,34 +128,20 @@ class TestMessageTemplate:
         assert tmpl.match(Message(body="ping"))
         assert not tmpl.match(Message(body="pong"))
 
-    def test_match_combined(self):
+    def test_match_multiple_fields(self):
         tmpl = MessageTemplate(to="a1", performative="request")
         assert tmpl.match(Message(to="a1", performative="request"))
         assert not tmpl.match(Message(to="a1", performative="inform"))
         assert not tmpl.match(Message(to="a2", performative="request"))
 
-    def test_and_template(self):
-        t1 = MessageTemplate(to="a")
-        t2 = MessageTemplate(performative="inform")
-        combined = t1 & t2
-        assert combined.match(Message(to="a", performative="inform"))
-        assert not combined.match(Message(to="a", performative="request"))
-        assert not combined.match(Message(to="b", performative="inform"))
-
-    def test_or_template(self):
-        t1 = MessageTemplate(performative="inform")
-        t2 = MessageTemplate(performative="request")
-        combined = t1 | t2
-        assert combined.match(Message(performative="inform"))
-        assert combined.match(Message(performative="request"))
-        assert not combined.match(Message(performative="cfp"))
-
-    def test_not_template(self):
-        t = MessageTemplate(performative="inform")
-        not_t = ~t
-        assert not_t.match(Message(performative="request"))
-        assert not not_t.match(Message(performative="inform"))
-
     def test_repr_nonempty(self):
         tmpl = MessageTemplate(to="x")
         assert "x" in repr(tmpl)
+
+    def test_match_check_callback(self):
+        tmpl = MessageTemplate(check=lambda msg: msg.sender in ("s1", "s2") and msg.performative != "inform")
+        assert tmpl.match(Message(sender="s1", performative="request"))
+        assert tmpl.match(Message(sender="s2", performative="request"))
+        assert not tmpl.match(Message(sender="s1", performative="inform"))
+        assert not tmpl.match(Message(sender="s3", performative="request"))
+

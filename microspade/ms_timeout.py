@@ -1,5 +1,6 @@
-from microspade._compat import ticks_ms, ticks_diff
-from microspade.oneshot_behaviour import OneShotBehaviour
+# microbit-module: ms_timeout@0.1.0
+from utime import ticks_ms, ticks_diff
+from ms_oneshot import OneShotBehaviour
 
 class TimeoutBehaviour(OneShotBehaviour):
     """
@@ -15,18 +16,12 @@ class TimeoutBehaviour(OneShotBehaviour):
         super().__init__()
         self._timeout_ms = int(timeout * 1000)
         self._trigger_at = None
-        self._triggered = False
 
     def on_start(self):
         self._trigger_at = ticks_ms() + self._timeout_ms
 
     def _step(self):
-        if self._triggered:
-            return
-        now = ticks_ms()
-        if self._trigger_at is None:
-            return
-        if ticks_diff(now, self._trigger_at) >= 0:
+        if self._trigger_at is not None and ticks_diff(ticks_ms(), self._trigger_at) >= 0:
             self.run()
-            self._triggered = True
+            self._trigger_at = None
             self._is_done = True

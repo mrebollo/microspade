@@ -1,3 +1,4 @@
+# microbit-module: ms_artifact@0.1.0
 """
 Artifact support for microspade.
 
@@ -16,7 +17,7 @@ class Artifact:
         self._properties = {}
         self.name = name
         if name is not None:
-            from microspade.container import container
+            from ms_container import container
             container.register_artifact(name, self)
 
     def add_observer(self, agent):
@@ -45,7 +46,7 @@ class Artifact:
                 agent._receive_property_update(self.name, name, value)
             # Broadcast over radio for remote observers (if registered)
             if self.name is not None:
-                from microspade.container import container
+                from ms_container import container
                 container.broadcast_property(self.name, name, value)
 
 
@@ -61,14 +62,68 @@ class RemoteArtifactProxy:
 
     def __getattr__(self, op_name):
         def method(*args):
-            body_parts = ["op", self._name, op_name]
-            for arg in args:
-                body_parts.append(str(arg))
+            body_parts = ["op", self._name, op_name] + [str(arg) for arg in args]
             body = "|".join(body_parts)
             
-            from microspade.message import Message
+            from ms_message import Message
             # Broadcast to let any listener board execute the operation
             msg = Message(to="*", sender=self._agent.name, performative="request", body=body)
             self._agent.send(msg)
         return method
+
+
+# Dynamic Injection (Monkey Patching) to decouple ms_agent from ms_artifact
+from ms_agent import Agent
+
+def _agent_on_property_change(self, artifact_name, property_name, value):
+    pass
+
+def _agent_receive_property_update(self, artifact_name, property_name, value):
+    self.set(property_name, value)
+    self.on_property_change(artifact_name, property_name, value)
+    handler_name = "on_{}_change".format(property_name)
+    handler = getattr(self, handler_name, None)
+    if handler is not None:
+        handler(value, artifact_name)
+
+def _agent_focus(self, name_or_artifact):
+    if not hasattr(self, "_focused_proxies"):
+        self._focused_proxies = {}
+
+    from ms_container import container
+    if isinstance(name_or_artifact, str):
+        name = name_or_artifact
+        if name in container.artifacts:
+            art = container.artifacts[name]
+            art.add_observer(self)
+            return art
+        else:
+            proxy = RemoteArtifactProxy(name, self)
+            self._focused_proxies[name] = proxy
+            return proxy
+    elif isinstance(name_or_artifact, Artifact):
+        art = name_or_artifact
+        if hasattr(art, "name") and art.name:
+            self._focused_proxies[art.name] = art
+        art.add_observer(self)
+        return art
+    else:
+        raise TypeError("focus expects a string name or an Artifact instance")
+
+Agent.on_property_change = _agent_on_property_change
+Agent._receive_property_update = _agent_receive_property_update
+Agent.focus = _agent_focus
+
+
+from ms_container import AgentContainer
+
+def _container_broadcast_property(self, artifact_name, prop_name, value):
+    body = "prop|{}|{}|{}".format(artifact_name, prop_name, str(value))
+    from ms_message import Message
+    msg = Message(to="*", performative="inform", body=body)
+    if self.agents:
+        first_agent = next(iter(self.agents.values()))
+        first_agent.send(msg)
+
+AgentContainer.broadcast_property = _container_broadcast_property
 

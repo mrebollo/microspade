@@ -1,3 +1,4 @@
+# microbit-module: ms_message@0.1.0
 """
 Message and MessageTemplate classes for microspade.
 
@@ -22,7 +23,6 @@ class Message:
         self.sender = sender
         self.body = body if body is not None else ""
         self.performative = performative if performative is not None else "inform"
-        self.metadata = {}
 
     # ------------------------------------------------------------------
     # Serialisation
@@ -30,13 +30,8 @@ class Message:
 
     def encode(self):
         """Return the wire-format string for this message."""
-        to = self.to if self.to is not None else ""
-        sender = self.sender if self.sender is not None else ""
-        perf = self.performative if self.performative is not None else "inform"
-        body = str(self.body) if self.body is not None else ""
-        # Escape any separator characters inside the body field.
-        body = body.replace(self._SEP, self._ESC)
-        return self._SEP.join([to, sender, perf, body])
+        body = str(self.body or "").replace(self._SEP, self._ESC)
+        return self._SEP.join([self.to or "", self.sender or "", self.performative or "inform", body])
 
     @classmethod
     def decode(cls, raw):
@@ -50,12 +45,11 @@ class Message:
         parts = raw.split(cls._SEP, 3)
         if len(parts) < 4:
             return None
-        body = parts[3].replace(cls._ESC, cls._SEP)
         return cls(
-            to=parts[0] if parts[0] else None,
-            sender=parts[1] if parts[1] else None,
-            performative=parts[2] if parts[2] else "inform",
-            body=body,
+            to=parts[0] or None,
+            sender=parts[1] or None,
+            performative=parts[2] or "inform",
+            body=parts[3].replace(cls._ESC, cls._SEP),
         )
 
     # ------------------------------------------------------------------
@@ -71,29 +65,14 @@ class Message:
             performative=self.performative,
         )
 
-    def set_metadata(self, key, value):
-        """Store an arbitrary metadata value (string key/value pair)."""
-        self.metadata[key] = value
-
-    def get_metadata(self, key):
-        """Return a metadata value, or ``None`` if not present."""
-        return self.metadata.get(key)
-
     # ------------------------------------------------------------------
     # Dunder helpers
     # ------------------------------------------------------------------
 
-    def __eq__(self, other):
-        if not isinstance(other, Message):
-            return False
-        return (
-            self.to == other.to
-            and self.sender == other.sender
-            and self.performative == other.performative
-            and self.body == other.body
-        )
+
 
     def __repr__(self):
+        """NOTE: Only available in debug mode (stripped in production)"""
         return "Message(to={}, sender={}, performative={}, body={})".format(
             repr(self.to),
             repr(self.sender),
@@ -108,16 +87,14 @@ class MessageTemplate:
 
     Any field set to a non-``None`` value is matched exactly.
     Fields left as ``None`` act as wildcards.
-
-    Boolean operators ``&``, ``|``, and ``~`` can be used to combine
-    templates (AND, OR, NOT).
     """
 
-    def __init__(self, to=None, sender=None, performative=None, body=None):
+    def __init__(self, to=None, sender=None, performative=None, body=None, check=None):
         self.to = to
         self.sender = sender
         self.performative = performative
         self.body = body
+        self.check = check
 
     def match(self, message):
         """Return ``True`` if *message* satisfies every constraint."""
@@ -129,22 +106,12 @@ class MessageTemplate:
             return False
         if self.body is not None and message.body != self.body:
             return False
+        if self.check is not None and not self.check(message):
+            return False
         return True
 
-    # ------------------------------------------------------------------
-    # Boolean composition
-    # ------------------------------------------------------------------
-
-    def __and__(self, other):
-        return _AndTemplate(self, other)
-
-    def __or__(self, other):
-        return _OrTemplate(self, other)
-
-    def __invert__(self):
-        return _NotTemplate(self)
-
     def __repr__(self):
+        """NOTE: Only available in debug mode (stripped in production)"""
         parts = []
         if self.to is not None:
             parts.append("to={}".format(repr(self.to)))
@@ -154,30 +121,6 @@ class MessageTemplate:
             parts.append("performative={}".format(repr(self.performative)))
         if self.body is not None:
             parts.append("body={}".format(repr(self.body)))
+        if self.check is not None:
+            parts.append("check={}".format(repr(self.check)))
         return "MessageTemplate({})".format(", ".join(parts))
-
-
-class _AndTemplate:
-    def __init__(self, left, right):
-        self._left = left
-        self._right = right
-
-    def match(self, message):
-        return self._left.match(message) and self._right.match(message)
-
-
-class _OrTemplate:
-    def __init__(self, left, right):
-        self._left = left
-        self._right = right
-
-    def match(self, message):
-        return self._left.match(message) or self._right.match(message)
-
-
-class _NotTemplate:
-    def __init__(self, inner):
-        self._inner = inner
-
-    def match(self, message):
-        return not self._inner.match(message)

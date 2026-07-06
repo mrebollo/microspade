@@ -14,7 +14,9 @@ Flash this to a single micro:bit.
 """
 
 from microbit import display, Image, button_a, button_b
-from microspade import Agent, FSMBehaviour, State, Message
+from ms_agent import Agent
+from ms_fsm import FSMBehaviour, State
+from ms_message import Message
 
 # State name constants
 IDLE = "IDLE"

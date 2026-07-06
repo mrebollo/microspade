@@ -6,7 +6,9 @@ and schedules a TimeoutBehaviour to automatically turn it off after 3 seconds.
 """
 
 from microbit import display, Image, button_a
-from microspade import Agent, CyclicBehaviour, TimeoutBehaviour
+from ms_agent import Agent
+from ms_cyclic import CyclicBehaviour
+from ms_timeout import TimeoutBehaviour
 
 
 class AutoOffBehaviour(TimeoutBehaviour):

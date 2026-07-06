@@ -10,7 +10,9 @@ with the opposite message.  The current count scrolls across the display.
 """
 
 from microbit import display, sleep  # noqa: F401  (micro:bit builtins)
-from microspade import Agent, CyclicBehaviour, Message, MessageTemplate
+from ms_agent import Agent
+from ms_cyclic import CyclicBehaviour
+from ms_message import Message, MessageTemplate
 
 # ------------------------------------------------------------------
 # Configuration — change these per-board
@@ -62,7 +64,7 @@ class PingPongBehaviour(CyclicBehaviour):
 
 class PingPongAgent(Agent):
     def __init__(self, name, peer, is_initiator, channel):
-        from microspade import RadioTransport
+        from ms_transport import RadioTransport
         super().__init__(name, transport=RadioTransport(channel=channel))
         self._peer = peer
         self._is_initiator = is_initiator

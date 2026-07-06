@@ -7,7 +7,8 @@ every 3 seconds. It toggles the top-left corner LED and plays a beep.
 
 from microbit import display
 import music
-from microspade import Agent, PeriodicBehaviour
+from ms_agent import Agent
+from ms_periodic import PeriodicBehaviour
 
 
 class BeaconBehaviour(PeriodicBehaviour):
