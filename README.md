@@ -2,11 +2,7 @@
 
 **SPADE-like multi-agent framework for the micro:bit platform using MicroPython.**
 
-microspade lets you write intelligent agents with structured *behaviours* on the
-[BBC micro:bit](https://microbit.org/), communicating over its built-in 2.4 GHz
-radio — no XMPP server required.  The API is intentionally close to
-[SPADE](https://github.com/javipalanca/spade) so that programs can be prototyped
-on a desktop and then deployed to micro:bit with minimal changes.
+microspade lets you write intelligent agents with structured *behaviours* and *artifacts* on the [BBC micro:bit](https://microbit.org/), communicating over its built-in 2.4 GHz radio — no XMPP server required. The API is intentionally close to [SPADE](https://github.com/javipalanca/spade) so that programs can be prototyped on a desktop and then deployed to micro:bit with minimal changes.
 
 ---
 
@@ -15,28 +11,41 @@ on a desktop and then deployed to micro:bit with minimal changes.
 | Feature | Details |
 |---------|---------|
 | **Behaviours** | `CyclicBehaviour`, `OneShotBehaviour`, `PeriodicBehaviour`, `TimeoutBehaviour`, `FSMBehaviour` |
+| **Artifacts** | Models sensors/actuators with properties synced to agents' KB and callbacks (`on_<prop>_change`) |
 | **Message routing** | Template-based routing to individual behaviour mailboxes |
 | **Local delivery** | Messages between agents on the **same** board bypass the radio |
 | **Radio transport** | Configurable channel, power, queue depth and frame length |
 | **Knowledge base** | Per-agent `set(key, value)` / `get(key)` store shared by all behaviours |
 | **MicroPython compatible** | Uses only the MicroPython standard library (`utime`, `radio`) |
 | **Testable on desktop** | Ships with a `MockTransport` so the full test suite runs on CPython |
+| **PC Development Tools** | Minifies, compiles imports, resolves dependencies, and flashes to micro:bit |
 
 ---
 
 ## Quick start
 
-### 1 — Copy the library to your micro:bit
+### 1 — Compile and flash to your micro:bit
 
-Copy the `microspade/` folder to the root of your micro:bit's filesystem.
-You can use [uflash](https://uflash.readthedocs.io/),
-[mu-editor](https://codewith.mu/), or the
-[micro:bit Python editor](https://python.microbit.org/).
+You can use the PC-side developer tools to compile, optimize, and upload a script along with its required modular dependencies in a single command.
+
+From the repository root, run:
+```bash
+# 1. Compile the script and resolve its dependencies
+python3 tools/build_module.py examples/hello_agent.py
+
+# 2. Flash it to the connected micro:bit V2 via USB
+bash tools/flash.sh
+```
+*Note: If the board doesn't have MicroPython yet, run `bash tools/flash.sh --firmware` to download and flash it.*
+
+Alternatively, you can manually copy `dist/microspade.py` or the modular `dist/microspade/` directory to the root of your micro:bit's filesystem.
 
 ### 2 — Write your first agent
 
+Write your agent script using standard desktop-compatible imports. The build tool will automatically translate these to flat module imports during packaging!
+
 ```python
-# main.py  (flash this to the micro:bit)
+# main.py
 from microbit import display
 from microspade import Agent, OneShotBehaviour
 
@@ -58,8 +67,7 @@ HelloAgent("hello_agent").run()
 
 ### Agent
 
-An `Agent` is the top-level container.  Subclass it and override `setup()` to
-add initial behaviours.
+An `Agent` is the top-level container. Subclass it and override `setup()` to add initial behaviours.
 
 ```python
 class MyAgent(Agent):
@@ -68,9 +76,7 @@ class MyAgent(Agent):
         self.set("counter", 0)   # knowledge-base entry
 ```
 
-The `run()` method starts the agent and enters the scheduling loop.  Use
-`step()` directly if you need to interleave the scheduler with other code
-(sensor reads, display updates, etc.).
+The `run()` method starts the agent and enters the scheduling loop. Use `step()` directly if you need to interleave the scheduler with other code (sensor reads, display updates, etc.).
 
 ```python
 agent = MyAgent("name")
@@ -82,12 +88,11 @@ while True:
 
 ### Behaviours
 
-Behaviours are the unit of execution.  Override `run()` with your logic.
+Behaviours are the unit of execution. Override `run()` with your logic.
 
 #### `CyclicBehaviour`
 
-`run()` is called on every scheduler tick.  The behaviour continues until
-`kill()` is called.
+`run()` is called on every scheduler tick. The behaviour continues until `kill()` is called.
 
 ```python
 class Counter(CyclicBehaviour):
@@ -112,7 +117,7 @@ class Boot(OneShotBehaviour):
 
 #### `PeriodicBehaviour`
 
-`run()` is called every `period` seconds.  The first call happens immediately.
+`run()` is called every `period` seconds. The first call happens immediately.
 
 ```python
 class Heartbeat(PeriodicBehaviour):
@@ -138,8 +143,7 @@ agent.add_behaviour(Alarm(timeout=5.0))
 
 #### `FSMBehaviour` and `State`
 
-Define a finite state machine where each `State` calls `set_next_state()` to
-transition or `kill()` to end the FSM.
+Define a finite state machine where each `State` calls `set_next_state()` to transition or `kill()` to end the FSM.
 
 ```python
 IDLE, ACTIVE, DONE = "IDLE", "ACTIVE", "DONE"
@@ -168,13 +172,50 @@ fsm.add_transition(ACTIVE, DONE)
 agent.add_behaviour(fsm)
 ```
 
+### Artifacts
+
+An `Artifact` represents an environmental resource (a physical sensor or actuator, internal or external) that agents can *focus* on. Focusing on an artifact automatically syncs its observable properties to the agent's knowledge base (KB).
+
+When a property changes, the artifact calls `update_property(name, value)`. This notifies all focused agents, updating their KB and triggering an optional `on_<property>_change(value, artifact_name)` callback method on the agent.
+
+#### Define an Artifact
+
+```python
+from ms_artifact import Artifact
+from microbit import temperature
+
+class TemperatureSensor(Artifact):
+    def __init__(self):
+        super().__init__()
+        self.define_property("temperature", temperature())
+
+    def read_sensor(self):
+        self.update_property("temperature", temperature())
+```
+
+#### Focus and React
+
+```python
+class ThermostatAgent(Agent):
+    def __init__(self, name, sensor_artifact):
+        super().__init__(name)
+        self.sensor = sensor_artifact
+
+    def setup(self):
+        self.focus(self.sensor)  # Focuses on the artifact & syncs initial properties
+
+    def on_temperature_change(self, value, artifact_name):
+        # Triggered automatically when the physical 'temperature' property changes
+        print("Temperature changed to:", value)
+```
+
 ### Messages
 
 `Message` carries a payload between agents.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `to` | `str` or `None` | Recipient name.  `None` or `"*"` = broadcast. |
+| `to` | `str` or `None` | Recipient name. `None` or `"*"` = broadcast. |
 | `sender` | `str` or `None` | Auto-filled by `send()` when not set. |
 | `body` | `str` | Message content. |
 | `performative` | `str` | FIPA-style speech act (default `"inform"`). |
@@ -206,8 +247,7 @@ tmpl = ~MessageTemplate(performative="error")   # NOT
 
 ### Receiving messages
 
-Call `receive()` inside `run()`.  Pass a `timeout` (seconds) to wait for a
-message — the scheduler polls the radio during the wait.
+Call `receive()` inside `run()`. Pass a `timeout` (seconds) to wait for a message — the scheduler polls the radio during the wait.
 
 ```python
 class Listener(CyclicBehaviour):
@@ -290,8 +330,7 @@ def test_my_behaviour():
 Run the bundled test suite:
 
 ```bash
-pip install pytest
-python -m pytest tests/
+uv run pytest tests/
 ```
 
 ---
@@ -300,35 +339,50 @@ python -m pytest tests/
 
 ```
 microspade/
-├── __init__.py        Public API
-├── _compat.py         MicroPython / CPython time shim
-├── message.py         Message, MessageTemplate
-├── mailbox.py         Per-behaviour FIFO queue
-├── behaviour.py       All behaviour classes + FSM
-├── transport.py       RadioTransport
-├── container.py       In-process agent registry
-└── agent.py           Agent base class + scheduler
+├── __init__.py        Public API exports (Agent, Artifact, Behaviours, etc.)
+├── ms_agent.py        Agent base class and cooperative scheduler
+├── ms_artifact.py     Artifact & RemoteArtifactProxy class (for sensors/actuators)
+├── ms_behaviour.py    Base Behaviour class
+├── ms_container.py    AgentContainer singleton (in-process registry)
+├── ms_cyclic.py       CyclicBehaviour class
+├── ms_fsm.py          FSMBehaviour & State classes
+├── ms_log.py          KB logging utility (log_kb)
+├── ms_mailbox.py      Mailbox (FIFO queue for message delivery)
+├── ms_message.py      Message & MessageTemplate classes
+├── ms_oneshot.py      OneShotBehaviour class
+├── ms_periodic.py     PeriodicBehaviour class
+├── ms_timeout.py      TimeoutBehaviour class
+└── ms_transport.py    RadioTransport class
 tests/
-├── mocks.py           MockTransport
-├── test_message.py
-├── test_behaviour.py
-└── test_agent.py
+├── mocks.py           MockTransport for offline testing
+├── test_agent.py      Agent and scheduler tests
+├── test_artifact.py   Tests for the new Artifact model
+├── test_behaviour.py  Tests for all behaviour types
+└── test_message.py    Tests for message encoding/decoding and templates
 examples/
-├── hello_agent.py     Hello-world single agent
-├── counter_agent.py   Countdown timer with rocket animation
-├── periodic_agent.py  Periodic LED and beep beacon
+├── README.md          Detailed description of all examples
+├── hello_agent.py     Simple agent that prints a greeting
+├── counter_agent.py   Countdown timer with speech (V2) and rocket animation
+├── periodic_agent.py  Toggles corner LED and plays beeps periodically
 ├── timeout_agent.py   Auto-off timer using TimeoutBehaviour
-├── ping_pong.py       Two-board communication
-└── fsm_agent.py       Button-driven state machine
+├── fsm_agent.py       FSM behaviour cycling LED patterns on button presses
+├── ping_pong.py       Two boards communicating over the radio
+├── artifact_agent.py  Temperature sensor artifact focused by a Thermostat agent
+├── rain_sensor_agent.py Interrupt-driven rain warning sensor and reactive callback
+├── light_agent.py     Touch logo switch toggling a light artifact with state sync
+└── media/             Pre-recorded simulator videos demonstrating the examples
 projects/
-└── environmental_monitor/  Comfort monitor using temperature, light, and sound V2
-    └── main.py
+├── cutebot_controller/ Control agent for the Elecfreaks Cutebot smart car
+├── environmental_monitor/ Comfort monitor using temperature, light, and sound (V2)
+└── urban_garden/      Smart agriculture automation monitoring system
 tools/
-├── build_module.py    Bundler script (removes comments/docstrings)
-├── receiver.py        Generic PC-side USB serial telemetry receiver
-└── README.md          Documentation for PC-side helper tools
+├── README.md          Documentation for PC-side helper tools
+├── build_module.py    Bundler script (concat/minify/transpile imports/dependencies)
+├── flash.sh           Utility to flash modules and main.py to micro:bit V2
+└── receiver.py        Generic PC-side USB serial telemetry receiver (auto CSV log)
 dist/
-└── microspade.py      Bundled single-file module for micro:bit
+├── microspade.py      Bundled single-file minified library (legacy/fallback)
+└── microspade/        Directory with individual minified modular files
 ```
 
 ---
