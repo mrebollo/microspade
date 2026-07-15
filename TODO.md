@@ -133,3 +133,5 @@ Provides reactive layered control (obstacle avoidance, wandering, targeting) whe
 - improve code generation
 - implement decision trees to data analysis (fits in microbit)
 - connect with raspberry to execute complex behaviours -> create spade artifact for microbit
+- try to create a typeScript reduced version (like the cutebot one)
+- fix transport/message module import inclusion in hello_agent (not needed)

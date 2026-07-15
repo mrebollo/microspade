@@ -22,6 +22,7 @@ dependencies = [
     "mpy-cross-v5>=1.1.1",
     "pyserial>=3.5",
     "pytest>=8.3.5",
+    "ubittool>=0.8.0",
 ]
 
 [tool.setuptools.packages.find]
